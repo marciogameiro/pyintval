@@ -455,8 +455,11 @@ an unbounded interval (or the empty set) rather than raising.
   m.def(
       "pi", []() { return pyintval::detail::kPi; },
       "A tight interval enclosing the mathematical constant pi.");
+  // The precomputed enclosure exp([1, 1]); returned as a direct literal rather
+  // than exp(point(1.0)) so no fused kernel expression runs (see the GCC-fusion
+  // note in interval.hpp).
   m.def(
-      "e", []() { return pyintval::exp(pyintval::point(1.0)); },
+      "e", []() { return Interval{0x1.5bf0a8b145768p1, 0x1.5bf0a8b14576ap1}; },
       "A tight interval enclosing Euler's number e.");
 
   // --- DecoratedInterval ----------------------------------------------------

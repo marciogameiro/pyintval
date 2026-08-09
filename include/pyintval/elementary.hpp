@@ -38,14 +38,18 @@ namespace detail {
 inline double lb(double cr) noexcept { return pred(cr); }  // <= true value
 inline double ub(double cr) noexcept { return succ(cr); }  // >= true value
 
-// Rigorous enclosures of pi-related constants (nearest doubles are below the
-// true value; the successor is above), and derived multiples via the interval
-// kernel so the enclosures stay valid.
-inline const Interval kPi = make(0x1.921fb54442d18p1, 0x1.921fb54442d19p1);
-inline const Interval kHalfPi = make(0x1.921fb54442d18p0, 0x1.921fb54442d19p0);
-inline const Interval kTwoPi = make(0x1.921fb54442d18p2, 0x1.921fb54442d19p2);
-inline const Interval kThreeHalfPi = add(kPi, kHalfPi);
-inline const Interval kZero = point(0.0);
+// Rigorous enclosures of pi-related constants: the nearest double is below the
+// true value, its successor above. These are constexpr aggregate literals --
+// NOT computed via make()/add() -- so they carry no runtime static initializer.
+// (A computed static initializer here ran fused kernel code at module load,
+// which GCC 10 miscompiled into a crash when the extension was dlopen'd; a
+// compile-time constant has nothing to miscompile.) kThreeHalfPi is the exact
+// value add(kPi, kHalfPi) produces; kZero is [0, 0].
+inline constexpr Interval kPi{0x1.921fb54442d18p1, 0x1.921fb54442d19p1};
+inline constexpr Interval kHalfPi{0x1.921fb54442d18p0, 0x1.921fb54442d19p0};
+inline constexpr Interval kTwoPi{0x1.921fb54442d18p2, 0x1.921fb54442d19p2};
+inline constexpr Interval kThreeHalfPi{0x1.2d97c7f3321d2p2, 0x1.2d97c7f3321d3p2};
+inline constexpr Interval kZero{0.0, 0.0};
 
 // Conservative test: might the interval x contain a real number congruent to
 // `target` modulo `period`? Computes n = (x - target) / period as an interval
