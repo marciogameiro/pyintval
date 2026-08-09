@@ -14,11 +14,14 @@
 #include <limits>
 #include <string>
 
+#include "pyintval/decoration.hpp"
 #include "pyintval/elementary.hpp"
 #include "pyintval/interval.hpp"
 #include "pyintval/text.hpp"
 
 namespace py = pybind11;
+using pyintval::DecoratedInterval;
+using pyintval::Decoration;
 using pyintval::Interval;
 
 #ifndef PYINTVAL_VERSION
@@ -89,6 +92,44 @@ Interval from_object(py::handle a, py::handle b) {
 }
 
 Interval pow_int(const Interval& a, long n) {
+  if (n < -1000000000L || n > 1000000000L) {
+    throw py::value_error("integer exponent out of supported range");
+  }
+  return pyintval::pown(a, static_cast<int>(n));
+}
+
+// Promote a Python operand to a decorated interval: decorated pass through,
+// bare intervals and finite scalars are freshly decorated.
+bool promote_dec(py::handle h, DecoratedInterval& out) {
+  if (py::isinstance<DecoratedInterval>(h)) {
+    out = py::cast<DecoratedInterval>(h);
+    return true;
+  }
+  if (py::isinstance<Interval>(h)) {
+    out = pyintval::decorate(py::cast<Interval>(h));
+    return true;
+  }
+  if (py::isinstance<py::float_>(h) || py::isinstance<py::int_>(h)) {
+    const double v = py::cast<double>(h);
+    if (!std::isfinite(v)) {
+      throw py::value_error("cannot use a non-finite scalar as an interval operand");
+    }
+    out = pyintval::decorate(pyintval::point(v));
+    return true;
+  }
+  return false;
+}
+
+Decoration decoration_from_str(const std::string& s) {
+  if (s == "com") return Decoration::com;
+  if (s == "dac") return Decoration::dac;
+  if (s == "def") return Decoration::def;
+  if (s == "trv") return Decoration::trv;
+  if (s == "ill") return Decoration::ill;
+  throw py::value_error("unknown decoration '" + s + "' (expected com/dac/def/trv/ill)");
+}
+
+DecoratedInterval dec_pow_int(const DecoratedInterval& a, long n) {
   if (n < -1000000000L || n > 1000000000L) {
     throw py::value_error("integer exponent out of supported range");
   }
@@ -166,22 +207,22 @@ an unbounded interval (or the empty set) rather than raising.
       "The pair (lo, hi).");
 
   // --- Arithmetic operators -------------------------------------------------
-  auto binop = [](const std::function<Interval(const Interval&, const Interval&)>& f,
-                  bool reflected) {
+  using IBin = Interval (*)(const Interval&, const Interval&);
+  auto binop = [](IBin f, bool reflected) {
     return [f, reflected](const Interval& self, py::handle other) -> py::object {
       Interval o;
       if (!promote(other, o)) return not_implemented();
       return py::cast(reflected ? f(o, self) : f(self, o));
     };
   };
-  iv.def("__add__", binop(pyintval::add, false));
-  iv.def("__radd__", binop(pyintval::add, true));
-  iv.def("__sub__", binop(pyintval::sub, false));
-  iv.def("__rsub__", binop(pyintval::sub, true));
-  iv.def("__mul__", binop(pyintval::mul, false));
-  iv.def("__rmul__", binop(pyintval::mul, true));
-  iv.def("__truediv__", binop(pyintval::div, false));
-  iv.def("__rtruediv__", binop(pyintval::div, true));
+  iv.def("__add__", binop(static_cast<IBin>(pyintval::add), false));
+  iv.def("__radd__", binop(static_cast<IBin>(pyintval::add), true));
+  iv.def("__sub__", binop(static_cast<IBin>(pyintval::sub), false));
+  iv.def("__rsub__", binop(static_cast<IBin>(pyintval::sub), true));
+  iv.def("__mul__", binop(static_cast<IBin>(pyintval::mul), false));
+  iv.def("__rmul__", binop(static_cast<IBin>(pyintval::mul), true));
+  iv.def("__truediv__", binop(static_cast<IBin>(pyintval::div), false));
+  iv.def("__rtruediv__", binop(static_cast<IBin>(pyintval::div), true));
   iv.def("__neg__", [](const Interval& x) { return pyintval::neg(x); });
   iv.def("__pos__", [](const Interval& x) { return x; });
   iv.def("__abs__", [](const Interval& x) { return pyintval::abs(x); });
@@ -271,24 +312,53 @@ an unbounded interval (or the empty set) rather than raising.
   iv.def("__deepcopy__", [](const Interval& x, py::handle) { return x; }, py::arg("memo"));
 
   // --- Module-level functions ----------------------------------------------
+  // Math functions are polymorphic: an Interval argument yields an Interval, a
+  // DecoratedInterval yields a DecoratedInterval (carrying the propagated
+  // decoration). These macros bind both overloads under one name.
+#define PYINTVAL_FN1(PYNAME, FN)                                                  \
+  m.def(PYNAME, [](const Interval& x) { return pyintval::FN(x); }, py::arg("x")); \
+  m.def(PYNAME, [](const DecoratedInterval& x) { return pyintval::FN(x); }, py::arg("x"))
+#define PYINTVAL_FN2(PYNAME, FN, A, B)                                                             \
+  m.def(                                                                                           \
+      PYNAME, [](const Interval& a, const Interval& b) { return pyintval::FN(a, b); }, py::arg(A), \
+      py::arg(B));                                                                                 \
+  m.def(                                                                                           \
+      PYNAME,                                                                                      \
+      [](const DecoratedInterval& a, const DecoratedInterval& b) { return pyintval::FN(a, b); },   \
+      py::arg(A), py::arg(B))
+
   m.def("empty", []() { return pyintval::empty(); });
   m.def("entire", []() { return pyintval::entire(); });
-  m.def("sqrt", &pyintval::sqrt, py::arg("x"));
-  m.def("sqr", &pyintval::sqr, py::arg("x"));
-  m.def("abs", &pyintval::abs, py::arg("x"));
-  m.def("recip", &pyintval::recip, py::arg("x"));
-  m.def("fma", &pyintval::fma, py::arg("x"), py::arg("y"), py::arg("z"),
-        "Fused multiply-add: a tight enclosure of x*y + z.");
+  PYINTVAL_FN1("sqrt", sqrt);
+  PYINTVAL_FN1("sqr", sqr);
+  PYINTVAL_FN1("abs", abs);
+  PYINTVAL_FN1("recip", recip);
+  m.def(
+      "fma",
+      [](const Interval& x, const Interval& y, const Interval& z) {
+        return pyintval::fma(x, y, z);
+      },
+      py::arg("x"), py::arg("y"), py::arg("z"),
+      "Fused multiply-add: a tight enclosure of x*y + z.");
+  m.def(
+      "fma",
+      [](const DecoratedInterval& x, const DecoratedInterval& y, const DecoratedInterval& z) {
+        return pyintval::fma(x, y, z);
+      },
+      py::arg("x"), py::arg("y"), py::arg("z"));
   m.def(
       "pown", [](const Interval& x, long n) { return pow_int(x, n); }, py::arg("x"), py::arg("n"));
-  m.def("floor", &pyintval::floor, py::arg("x"));
-  m.def("ceil", &pyintval::ceil, py::arg("x"));
-  m.def("trunc", &pyintval::trunc, py::arg("x"));
-  m.def("round", &pyintval::round_ties_to_even, py::arg("x"), "Round half to even.");
-  m.def("round_ties_to_away", &pyintval::round_ties_to_away, py::arg("x"));
-  m.def("sign", &pyintval::sign, py::arg("x"));
-  m.def("min", &pyintval::min, py::arg("x"), py::arg("y"));
-  m.def("max", &pyintval::max, py::arg("x"), py::arg("y"));
+  m.def(
+      "pown", [](const DecoratedInterval& x, long n) { return dec_pow_int(x, n); }, py::arg("x"),
+      py::arg("n"));
+  PYINTVAL_FN1("floor", floor);
+  PYINTVAL_FN1("ceil", ceil);
+  PYINTVAL_FN1("trunc", trunc);
+  PYINTVAL_FN1("round", round_ties_to_even);
+  PYINTVAL_FN1("round_ties_to_away", round_ties_to_away);
+  PYINTVAL_FN1("sign", sign);
+  PYINTVAL_FN2("min", min, "x", "y");
+  PYINTVAL_FN2("max", max, "x", "y");
   m.def("hull", &pyintval::convex_hull, py::arg("x"), py::arg("y"));
   m.def("intersection", &pyintval::intersection, py::arg("x"), py::arg("y"));
   m.def("cancel_minus", &pyintval::cancel_minus, py::arg("a"), py::arg("b"));
@@ -314,34 +384,34 @@ an unbounded interval (or the empty set) rather than raising.
   // --- Elementary (transcendental) functions -------------------------------
   // Each returns a rigorous enclosure of the true image over its input, built
   // on correctly-rounded CORE-MATH kernels widened one ulp per endpoint.
-  m.def("exp", &pyintval::exp, py::arg("x"));
-  m.def("exp2", &pyintval::exp2, py::arg("x"));
-  m.def("exp10", &pyintval::exp10, py::arg("x"));
-  m.def("expm1", &pyintval::expm1, py::arg("x"));
-  m.def("log", &pyintval::log, py::arg("x"));
-  m.def("log2", &pyintval::log2, py::arg("x"));
-  m.def("log10", &pyintval::log10, py::arg("x"));
-  m.def("log1p", &pyintval::log1p, py::arg("x"));
-  m.def("cbrt", &pyintval::cbrt, py::arg("x"));
-  m.def("sin", &pyintval::sin, py::arg("x"));
-  m.def("cos", &pyintval::cos, py::arg("x"));
-  m.def("tan", &pyintval::tan, py::arg("x"));
-  m.def("asin", &pyintval::asin, py::arg("x"));
-  m.def("acos", &pyintval::acos, py::arg("x"));
-  m.def("atan", &pyintval::atan, py::arg("x"));
-  m.def("atan2", &pyintval::atan2, py::arg("y"), py::arg("x"));
-  m.def("sinh", &pyintval::sinh, py::arg("x"));
-  m.def("cosh", &pyintval::cosh, py::arg("x"));
-  m.def("tanh", &pyintval::tanh, py::arg("x"));
-  m.def("asinh", &pyintval::asinh, py::arg("x"));
-  m.def("acosh", &pyintval::acosh, py::arg("x"));
-  m.def("atanh", &pyintval::atanh, py::arg("x"));
-  m.def("hypot", &pyintval::hypot, py::arg("x"), py::arg("y"));
-  m.def("pow", &pyintval::pow, py::arg("x"), py::arg("y"),
-        "Rigorous x**y. A point integer y reduces to pown; otherwise the base "
-        "must be nonnegative (real power).");
-  m.def("erf", &pyintval::erf, py::arg("x"));
-  m.def("erfc", &pyintval::erfc, py::arg("x"));
+  PYINTVAL_FN1("exp", exp);
+  PYINTVAL_FN1("exp2", exp2);
+  PYINTVAL_FN1("exp10", exp10);
+  PYINTVAL_FN1("expm1", expm1);
+  PYINTVAL_FN1("log", log);
+  PYINTVAL_FN1("log2", log2);
+  PYINTVAL_FN1("log10", log10);
+  PYINTVAL_FN1("log1p", log1p);
+  PYINTVAL_FN1("cbrt", cbrt);
+  PYINTVAL_FN1("sin", sin);
+  PYINTVAL_FN1("cos", cos);
+  PYINTVAL_FN1("tan", tan);
+  PYINTVAL_FN1("asin", asin);
+  PYINTVAL_FN1("acos", acos);
+  PYINTVAL_FN1("atan", atan);
+  PYINTVAL_FN2("atan2", atan2, "y", "x");
+  PYINTVAL_FN1("sinh", sinh);
+  PYINTVAL_FN1("cosh", cosh);
+  PYINTVAL_FN1("tanh", tanh);
+  PYINTVAL_FN1("asinh", asinh);
+  PYINTVAL_FN1("acosh", acosh);
+  PYINTVAL_FN1("atanh", atanh);
+  PYINTVAL_FN2("hypot", hypot, "x", "y");
+  PYINTVAL_FN2("pow", pow, "x", "y");
+  PYINTVAL_FN1("erf", erf);
+  PYINTVAL_FN1("erfc", erfc);
+#undef PYINTVAL_FN1
+#undef PYINTVAL_FN2
 
   // Rigorous enclosures of common constants.
   m.def(
@@ -350,4 +420,103 @@ an unbounded interval (or the empty set) rather than raising.
   m.def(
       "e", []() { return pyintval::exp(pyintval::point(1.0)); },
       "A tight interval enclosing Euler's number e.");
+
+  // --- DecoratedInterval ----------------------------------------------------
+  py::class_<DecoratedInterval> di(m, "DecoratedInterval", R"doc(
+An interval paired with an IEEE 1788 decoration certifying, from the
+computation's history, the strongest property known of the function evaluated
+so far: 'com' (defined, continuous, bounded on a common input), 'dac' (defined
+and continuous), 'def' (defined), 'trv' (only the enclosure is guaranteed), or
+'ill' (not an interval). A result decoration of 'dac' or 'com' is a
+machine-checked certificate that the whole composed expression is defined and
+continuous on its input box.
+)doc");
+
+  di.def(py::init([](py::object a, py::object b) { return pyintval::decorate(from_object(a, b)); }),
+         py::arg("lo"), py::arg("hi") = py::none());
+  di.def_static(
+      "from_parts",
+      [](const Interval& x, const std::string& d) {
+        return pyintval::decorate(x, decoration_from_str(d));
+      },
+      py::arg("interval"), py::arg("decoration"),
+      "Build a decorated interval from a bare interval and an explicit decoration.");
+  di.def_static("nai", []() { return pyintval::nai(); }, "The Not-an-Interval (ill) value.");
+
+  di.def_property_readonly(
+      "interval", [](const DecoratedInterval& d) { return d.x; }, "The bare interval.");
+  di.def_property_readonly(
+      "decoration", [](const DecoratedInterval& d) { return std::string(decoration_name(d.dec)); },
+      "The decoration as one of 'com'/'dac'/'def'/'trv'/'ill'.");
+  di.def_property_readonly("lo", [](const DecoratedInterval& d) { return d.x.lo; });
+  di.def_property_readonly("hi", [](const DecoratedInterval& d) { return d.x.hi; });
+  di.def_property_readonly("is_common",
+                           [](const DecoratedInterval& d) { return d.dec == Decoration::com; });
+  di.def_property_readonly("is_defined_and_continuous", [](const DecoratedInterval& d) {
+    return static_cast<int>(d.dec) >= static_cast<int>(Decoration::dac);
+  });
+  di.def_property_readonly("is_defined", [](const DecoratedInterval& d) {
+    return static_cast<int>(d.dec) >= static_cast<int>(Decoration::def);
+  });
+  di.def_property_readonly("is_nai",
+                           [](const DecoratedInterval& d) { return d.dec == Decoration::ill; });
+
+  using DBin = DecoratedInterval (*)(const DecoratedInterval&, const DecoratedInterval&);
+  auto dbinop = [](DBin f, bool reflected) {
+    return [f, reflected](const DecoratedInterval& self, py::handle other) -> py::object {
+      DecoratedInterval o;
+      if (!promote_dec(other, o)) return not_implemented();
+      return py::cast(reflected ? f(o, self) : f(self, o));
+    };
+  };
+  di.def("__add__", dbinop(static_cast<DBin>(pyintval::add), false));
+  di.def("__radd__", dbinop(static_cast<DBin>(pyintval::add), true));
+  di.def("__sub__", dbinop(static_cast<DBin>(pyintval::sub), false));
+  di.def("__rsub__", dbinop(static_cast<DBin>(pyintval::sub), true));
+  di.def("__mul__", dbinop(static_cast<DBin>(pyintval::mul), false));
+  di.def("__rmul__", dbinop(static_cast<DBin>(pyintval::mul), true));
+  di.def("__truediv__", dbinop(static_cast<DBin>(pyintval::div), false));
+  di.def("__rtruediv__", dbinop(static_cast<DBin>(pyintval::div), true));
+  di.def("__neg__", [](const DecoratedInterval& x) { return pyintval::neg(x); });
+  di.def("__pos__", [](const DecoratedInterval& x) { return x; });
+  di.def("__abs__", [](const DecoratedInterval& x) { return pyintval::abs(x); });
+  di.def(
+      "__pow__",
+      [](const DecoratedInterval& a, py::object e, py::object mod) -> py::object {
+        if (!mod.is_none()) return not_implemented();
+        if (py::isinstance<py::int_>(e)) return py::cast(dec_pow_int(a, py::cast<long>(e)));
+        if (py::isinstance<DecoratedInterval>(e))
+          return py::cast(pyintval::pow(a, py::cast<DecoratedInterval>(e)));
+        if (py::isinstance<py::float_>(e)) {
+          const double d = py::cast<double>(e);
+          if (std::isfinite(d) && d == std::floor(d))
+            return py::cast(dec_pow_int(a, static_cast<long>(d)));
+          return py::cast(pyintval::pow(a, pyintval::decorate(pyintval::point(d))));
+        }
+        return not_implemented();
+      },
+      py::arg("exponent"), py::arg("modulo") = py::none());
+
+  di.def("__repr__", [](const DecoratedInterval& d) {
+    return "DecoratedInterval.from_parts(Interval('" +
+           (pyintval::is_empty(d.x) ? std::string("[empty]") : pyintval::interval_to_text(d.x)) +
+           "'), '" + decoration_name(d.dec) + "')";
+  });
+  di.def("__str__", [](const DecoratedInterval& d) {
+    return pyintval::interval_to_text(d.x) + "_" + decoration_name(d.dec);
+  });
+  di.def("__eq__", [](const DecoratedInterval& a, py::handle o) -> py::object {
+    if (!py::isinstance<DecoratedInterval>(o)) return not_implemented();
+    const auto& b = py::cast<DecoratedInterval>(o);
+    return py::cast(pyintval::equal(a.x, b.x) && a.dec == b.dec);
+  });
+  di.def(py::pickle(
+      [](const DecoratedInterval& d) {
+        return py::make_tuple(d.x.lo, d.x.hi, static_cast<int>(d.dec));
+      },
+      [](py::tuple t) {
+        if (t.size() != 3) throw std::runtime_error("invalid decorated-interval pickle");
+        return DecoratedInterval{Interval{t[0].cast<double>(), t[1].cast<double>()},
+                                 static_cast<Decoration>(t[2].cast<int>())};
+      }));
 }

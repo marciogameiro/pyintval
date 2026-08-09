@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from pyintval._core import (
     KERNEL_ABI_VERSION,
+    DecoratedInterval,
     Interval,
     __version__,
     abs,
@@ -77,6 +78,7 @@ from pyintval._core import (
 
 __all__ = [
     "KERNEL_ABI_VERSION",
+    "DecoratedInterval",
     "Interval",
     "__version__",
     "abs",

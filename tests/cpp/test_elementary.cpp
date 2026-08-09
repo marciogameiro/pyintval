@@ -72,8 +72,8 @@ TEST_CASE("periodic extrema are captured") {
 }
 
 TEST_CASE("tan asymptotes give the entire line") {
-  CHECK(is_entire(tan(make(1.5, 1.7))));   // straddles pi/2
-  CHECK(is_entire(tan(make(0.0, 4.0))));   // spans more than a period
+  CHECK(is_entire(tan(make(1.5, 1.7))));  // straddles pi/2
+  CHECK(is_entire(tan(make(0.0, 4.0))));  // spans more than a period
   CHECK(is_entire(tan(entire())));
   // A branch-interior interval stays bounded and increasing.
   Interval t = tan(make(0.1, 0.2));
@@ -90,7 +90,7 @@ TEST_CASE("domains restrict toward empty") {
   CHECK(is_empty(acosh(make(0.0, 0.5))));
   CHECK(is_empty(atanh(make(-3.0, -1.5))));
   // Partial-domain input is clipped, not rejected.
-  CHECK(log(make(-1.0, 4.0)).lo == -kInfv);           // approaches 0+ -> -inf
+  CHECK(log(make(-1.0, 4.0)).lo == -kInfv);  // approaches 0+ -> -inf
   CHECK(equal(asin(make(-2.0, 0.0)), asin(make(-1.0, 0.0))));
   CHECK(acosh(make(0.5, 2.0)).lo >= 0.0);
 }
@@ -141,8 +141,8 @@ TEST_CASE("pow: integer exponents match pown; real powers via nonnegative base")
 }
 
 TEST_CASE("atan2 quadrants and branch cut") {
-  CHECK(holds(std::atan2(1.0, 1.0), atan2(point(1.0), point(1.0))));   // ~ pi/4
-  CHECK(holds(std::atan2(1.0, -1.0), atan2(point(1.0), point(-1.0)))); // ~ 3pi/4
+  CHECK(holds(std::atan2(1.0, 1.0), atan2(point(1.0), point(1.0))));    // ~ pi/4
+  CHECK(holds(std::atan2(1.0, -1.0), atan2(point(1.0), point(-1.0))));  // ~ 3pi/4
   CHECK(holds(std::atan2(-1.0, -1.0), atan2(point(-1.0), point(-1.0))));
   // Box straddling the negative x-axis: conservative full-angle enclosure.
   Interval wrap = atan2(make(-1.0, 1.0), make(-2.0, -1.0));

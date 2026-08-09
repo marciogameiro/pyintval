@@ -94,9 +94,14 @@ def test_unary_enclosure(name, ivf, mpf, dlo, dhi):
             assert _encloses(out, mpf(p)), f"{name}({float(p)!r}) not in {out}"
 
 
-@pytest.mark.parametrize("name,ivf,mpf", [
-    ("sin", iv.sin, mp.sin), ("cos", iv.cos, mp.cos),
-], ids=["sin", "cos"])
+@pytest.mark.parametrize(
+    "name,ivf,mpf",
+    [
+        ("sin", iv.sin, mp.sin),
+        ("cos", iv.cos, mp.cos),
+    ],
+    ids=["sin", "cos"],
+)
 def test_periodic_dense(name, ivf, mpf):
     import random
 
@@ -134,8 +139,16 @@ def test_two_argument_enclosure():
 
 def test_tightness_at_points():
     # A point interval must yield an enclosure only a couple of ulps wide.
-    for f, val in [(iv.exp, 1.3), (iv.log, 3.7), (iv.sin, 0.9), (iv.cos, 2.1),
-                   (iv.atan, 5.0), (iv.tanh, 0.6), (iv.cbrt, 9.0), (iv.erf, 0.4)]:
+    for f, val in [
+        (iv.exp, 1.3),
+        (iv.log, 3.7),
+        (iv.sin, 0.9),
+        (iv.cos, 2.1),
+        (iv.atan, 5.0),
+        (iv.tanh, 0.6),
+        (iv.cbrt, 9.0),
+        (iv.erf, 0.4),
+    ]:
         out = f(I(val))
         assert out.wid <= 4 * math.ulp(max(abs(out.hi), abs(out.lo), 1e-300))
 

@@ -250,8 +250,9 @@ inline Interval cos(const Interval& x) noexcept {
   if (!is_common(x)) return make(-1.0, 1.0);
   double lo = std::min(detail::lb(cr_cos(x.lo)), detail::lb(cr_cos(x.hi)));
   double hi = std::max(detail::ub(cr_cos(x.lo)), detail::ub(cr_cos(x.hi)));
-  if (detail::maybe_contains_mod(x, detail::kZero, detail::kTwoPi)) hi = 1.0;   // cos=1 at 0 mod 2pi
-  if (detail::maybe_contains_mod(x, detail::kPi, detail::kTwoPi)) lo = -1.0;    // cos=-1 at pi mod 2pi
+  if (detail::maybe_contains_mod(x, detail::kZero, detail::kTwoPi)) hi = 1.0;  // cos=1 at 0 mod 2pi
+  if (detail::maybe_contains_mod(x, detail::kPi, detail::kTwoPi))
+    lo = -1.0;  // cos=-1 at pi mod 2pi
   if (lo < -1.0) lo = -1.0;
   if (hi > 1.0) hi = 1.0;
   return make(lo, hi);

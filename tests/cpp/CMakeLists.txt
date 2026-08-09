@@ -9,6 +9,7 @@ add_executable(pyintval_cpp_tests
     test_interval_sets.cpp
     test_text.cpp
     test_elementary.cpp
+    test_decoration.cpp
     ${PYINTVAL_COREMATH_SOURCES})
 target_include_directories(pyintval_cpp_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/include
