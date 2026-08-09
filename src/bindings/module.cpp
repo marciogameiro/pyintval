@@ -194,8 +194,10 @@ an unbounded interval (or the empty set) rather than raising.
   iv.def_property_readonly("mid", &pyintval::mid, "A finite midpoint inside the interval.");
   iv.def_property_readonly("rad", &pyintval::rad, "Radius (half width, rounded up).");
   iv.def_property_readonly("wid", &pyintval::wid, "Width, rounded up.");
-  iv.def_property_readonly("mag", &pyintval::mag, "Magnitude sup{|x| : x in self}.");
-  iv.def_property_readonly("mig", &pyintval::mig, "Mignitude inf{|x| : x in self}.");
+  iv.def_property_readonly("mag", &pyintval::mag,
+                           "Magnitude: the largest absolute value attained in the interval.");
+  iv.def_property_readonly("mig", &pyintval::mig,
+                           "Mignitude: the smallest absolute value attained in the interval.");
   iv.def_property_readonly("is_empty", &pyintval::is_empty);
   iv.def_property_readonly("is_entire", &pyintval::is_entire);
   iv.def_property_readonly("is_singleton", &pyintval::is_singleton,

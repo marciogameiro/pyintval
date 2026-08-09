@@ -44,11 +44,16 @@ inline Decoration dmin(Decoration a, Decoration b) noexcept {
 
 inline const char* decoration_name(Decoration d) noexcept {
   switch (d) {
-    case Decoration::com: return "com";
-    case Decoration::dac: return "dac";
-    case Decoration::def: return "def";
-    case Decoration::trv: return "trv";
-    default: return "ill";
+    case Decoration::com:
+      return "com";
+    case Decoration::dac:
+      return "dac";
+    case Decoration::def:
+      return "def";
+    case Decoration::trv:
+      return "trv";
+    default:
+      return "ill";
   }
 }
 
@@ -81,9 +86,7 @@ inline Decoration cont_local(std::initializer_list<Interval> inputs, const Inter
 
 // --- Construction -----------------------------------------------------------
 
-inline DecoratedInterval decorate(const Interval& x) noexcept {
-  return {x, detail::newdec(x)};
-}
+inline DecoratedInterval decorate(const Interval& x) noexcept { return {x, detail::newdec(x)}; }
 inline DecoratedInterval decorate(const Interval& x, Decoration d) noexcept { return {x, d}; }
 
 // A Not-an-Interval marker: ill-formed, poisons every computation.
@@ -160,8 +163,7 @@ inline DecoratedInterval recip(const DecoratedInterval& a) {
 // pown: defined and continuous everywhere for n >= 0; for n < 0 undefined at 0.
 inline DecoratedInterval pown(const DecoratedInterval& a, int n) {
   const Interval y = pown(a.x, n);
-  Decoration local =
-      (n < 0 && contains_zero(a.x)) ? Decoration::trv : detail::cont_local({a.x}, y);
+  Decoration local = (n < 0 && contains_zero(a.x)) ? Decoration::trv : detail::cont_local({a.x}, y);
   return detail::finish(y, local, a.dec);
 }
 
@@ -221,10 +223,10 @@ inline DecoratedInterval sqrt(const DecoratedInterval& a) {
 }
 
 // Continuous everywhere on R.
-#define PYINTVAL_DEC_CONT_UNARY(NAME)                                    \
-  inline DecoratedInterval NAME(const DecoratedInterval& a) {            \
-    const Interval y = NAME(a.x);                                        \
-    return detail::finish(y, detail::cont_local({a.x}, y), a.dec);       \
+#define PYINTVAL_DEC_CONT_UNARY(NAME)                              \
+  inline DecoratedInterval NAME(const DecoratedInterval& a) {      \
+    const Interval y = NAME(a.x);                                  \
+    return detail::finish(y, detail::cont_local({a.x}, y), a.dec); \
   }
 PYINTVAL_DEC_CONT_UNARY(exp)
 PYINTVAL_DEC_CONT_UNARY(exp2)
@@ -243,11 +245,11 @@ PYINTVAL_DEC_CONT_UNARY(erfc)
 #undef PYINTVAL_DEC_CONT_UNARY
 
 // Defined & continuous on (0, inf).
-#define PYINTVAL_DEC_LOG(NAME)                                                     \
-  inline DecoratedInterval NAME(const DecoratedInterval& a) {                      \
-    const Interval y = NAME(a.x);                                                  \
-    const bool violated = is_empty(a.x) ? false : (a.x.lo <= 0.0);                 \
-    return detail::finish(y, detail::domain_local(violated, a.x, y), a.dec);       \
+#define PYINTVAL_DEC_LOG(NAME)                                               \
+  inline DecoratedInterval NAME(const DecoratedInterval& a) {                \
+    const Interval y = NAME(a.x);                                            \
+    const bool violated = is_empty(a.x) ? false : (a.x.lo <= 0.0);           \
+    return detail::finish(y, detail::domain_local(violated, a.x, y), a.dec); \
   }
 PYINTVAL_DEC_LOG(log)
 PYINTVAL_DEC_LOG(log2)
@@ -261,11 +263,11 @@ inline DecoratedInterval log1p(const DecoratedInterval& a) {
 }
 
 // Defined & continuous on [-1, 1] (closed; the endpoints are in the domain).
-#define PYINTVAL_DEC_ASINCOS(NAME)                                                     \
-  inline DecoratedInterval NAME(const DecoratedInterval& a) {                          \
-    const Interval y = NAME(a.x);                                                      \
-    const bool violated = is_empty(a.x) ? false : (a.x.lo < -1.0 || a.x.hi > 1.0);     \
-    return detail::finish(y, detail::domain_local(violated, a.x, y), a.dec);           \
+#define PYINTVAL_DEC_ASINCOS(NAME)                                                 \
+  inline DecoratedInterval NAME(const DecoratedInterval& a) {                      \
+    const Interval y = NAME(a.x);                                                  \
+    const bool violated = is_empty(a.x) ? false : (a.x.lo < -1.0 || a.x.hi > 1.0); \
+    return detail::finish(y, detail::domain_local(violated, a.x, y), a.dec);       \
   }
 PYINTVAL_DEC_ASINCOS(asin)
 PYINTVAL_DEC_ASINCOS(acos)

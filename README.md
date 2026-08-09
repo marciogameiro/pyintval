@@ -61,6 +61,19 @@ From source (requires a C++20 compiler):
 pip install .
 ```
 
+On Windows, building from source requires **clang-cl** (the vendored CORE-MATH
+kernels use features MSVC lacks); prebuilt wheels have no such requirement.
+
+## Documentation
+
+Full documentation — guide and API reference — is built with Sphinx from
+`docs/` and hosted on Read the Docs. Build it locally with:
+
+```sh
+pip install ".[docs]"
+sphinx-build -b html docs docs/_build/html
+```
+
 ## Development
 
 ```sh
@@ -78,7 +91,17 @@ pip install pre-commit
 pre-commit run --all-files
 ```
 
+See [RELEASING.md](RELEASING.md) for the wheel-building and PyPI publishing
+process.
+
+## Examples
+
+The [`examples/`](examples/) directory has runnable scripts: basic usage,
+rigorous range enclosure, an intermediate-value-theorem root proof, certified
+transcendental bounds, and a continuity certificate via decorated intervals.
+
 ## License
 
-MIT. Vendored components: [doctest](https://github.com/doctest/doctest) (MIT);
-CORE-MATH routines (MIT) will be vendored in a later milestone.
+MIT. Vendored components: [doctest](https://github.com/doctest/doctest) (MIT)
+and the [CORE-MATH](https://core-math.gitlabpages.inria.fr/) correctly-rounded
+kernels (MIT); see `third_party/`.

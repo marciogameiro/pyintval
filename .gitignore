@@ -13,6 +13,8 @@ dist/
 build/
 _skbuild/
 compile_commands.json
+wheelhouse/
+docs/_build/
 
 # Editors / OS
 .claude/settings.local.json
