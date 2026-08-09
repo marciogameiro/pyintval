@@ -518,6 +518,10 @@ inline Interval cancel_minus(const Interval& a, const Interval& b) noexcept {
   // borderline violation inside its rounding).
   const detail::EftPair lhs = detail::two_sum(a.hi, b.lo);
   const detail::EftPair rhs = detail::two_sum(a.lo, b.hi);
+  // If either sum overflows (operands near +-max), the exact comparison is
+  // undecidable here; entire is the sound fallback (it is a superset of any
+  // valid cancelMinus result).
+  if (!std::isfinite(lhs.val) || !std::isfinite(rhs.val)) return entire();
   if (detail::exact_sum_sign({lhs.val, lhs.err, -rhs.val, -rhs.err}) < 0) return entire();
   const double lo = detail::sub_rd(a.lo, b.lo);
   const double hi = detail::sub_ru(a.hi, b.hi);

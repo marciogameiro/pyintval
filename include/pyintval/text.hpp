@@ -290,6 +290,10 @@ inline ParsedReal parse_real(std::string_view s) {
 // Returns -1, 0, or +1.
 inline int compare_mag(const BigU& sig, int p2, int p5, double v) {
   if (sig.is_zero()) return v > 0.0 ? -1 : 0;
+  // A finite decimal magnitude is always below +inf. Guard this BEFORE frexp /
+  // the uint64_t cast (both UB on infinity), and so the defensive stepping loop
+  // in bracket() terminates when it steps hi up to +inf instead of spinning.
+  if (v == detail::kInf) return -1;
   int ev = 0;
   const double f = std::frexp(v, &ev);                           // v = f * 2^ev, f in [0.5, 1)
   const uint64_t mv = static_cast<uint64_t>(std::ldexp(f, 53));  // exact integer

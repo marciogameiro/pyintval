@@ -34,15 +34,41 @@ py::object not_implemented() {
   return py::reinterpret_borrow<py::object>(py::handle(Py_NotImplemented));
 }
 
+// The tightest interval enclosing a Python integer. A double cannot exactly
+// represent every integer, so an int >= 2^53 must become a nondegenerate 1-ulp
+// interval (or [DBL_MAX, inf] on overflow), never a rounded point -- otherwise
+// the library's enclosure guarantee is violated by ordinary `x + 10**20`.
+Interval int_to_interval(const py::int_& n) {
+  const double d = PyLong_AsDouble(n.ptr());
+  if (d == -1.0 && PyErr_Occurred()) {  // magnitude exceeds DBL_MAX
+    PyErr_Clear();
+    const bool nonneg = PyObject_RichCompareBool(n.ptr(), py::int_(0).ptr(), Py_GE) == 1;
+    return nonneg ? pyintval::make(pyintval::detail::kMaxDouble, pyintval::detail::kInf)
+                  : pyintval::make(-pyintval::detail::kInf, -pyintval::detail::kMaxDouble);
+  }
+  // d is the round-to-nearest integer-valued double; compare n exactly to int(d).
+  py::object di = py::reinterpret_steal<py::object>(PyNumber_Long(PyFloat_FromDouble(d)));
+  if (PyObject_RichCompareBool(n.ptr(), di.ptr(), Py_EQ) == 1) return pyintval::point(d);
+  if (PyObject_RichCompareBool(n.ptr(), di.ptr(), Py_GT) == 1) {
+    return pyintval::make(d, pyintval::detail::succ(d));  // true value in (d, succ(d))
+  }
+  return pyintval::make(pyintval::detail::pred(d), d);  // true value in (pred(d), d)
+}
+
 // Promote a Python operand to an interval for arithmetic: intervals pass
-// through, finite real scalars become points. Anything else -> false, so the
-// caller can return NotImplemented and let Python try the reflected operation.
+// through, finite real scalars become points, and integers become their
+// tightest enclosing interval. Anything else -> false, so the caller can
+// return NotImplemented and let Python try the reflected operation.
 bool promote(py::handle h, Interval& out) {
   if (py::isinstance<Interval>(h)) {
     out = py::cast<Interval>(h);
     return true;
   }
-  if (py::isinstance<py::float_>(h) || py::isinstance<py::int_>(h)) {
+  if (py::isinstance<py::int_>(h)) {  // check int first (bool is an int subclass)
+    out = int_to_interval(py::cast<py::int_>(h));
+    return true;
+  }
+  if (py::isinstance<py::float_>(h)) {
     const double v = py::cast<double>(h);
     if (!std::isfinite(v)) {
       throw py::value_error("cannot use a non-finite scalar as an interval operand");
@@ -51,6 +77,17 @@ bool promote(py::handle h, Interval& out) {
     return true;
   }
   return false;
+}
+
+// Lower / upper endpoint from a Python bound: floats are exact doubles;
+// integers round outward (down for the lower endpoint, up for the upper).
+double bound_lo(py::handle h) {
+  if (py::isinstance<py::int_>(h)) return int_to_interval(py::cast<py::int_>(h)).lo;
+  return py::cast<double>(h);
+}
+double bound_hi(py::handle h) {
+  if (py::isinstance<py::int_>(h)) return int_to_interval(py::cast<py::int_>(h)).hi;
+  return py::cast<double>(h);
 }
 
 // Exact, bit-lossless textual form of one endpoint (hex float), used by repr.
@@ -85,10 +122,12 @@ Interval from_object(py::handle a, py::handle b) {
       return out;
     }
     if (py::isinstance<Interval>(a)) return py::cast<Interval>(a);
-    const double v = py::cast<double>(a);  // TypeError for non-numbers
+    if (py::isinstance<py::int_>(a)) return int_to_interval(py::cast<py::int_>(a));
+    const double v = py::cast<double>(a);  // float; TypeError for non-numbers
     return make_checked(v, v);
   }
-  return make_checked(py::cast<double>(a), py::cast<double>(b));
+  // Endpoints round outward: the lower bound down, the upper bound up.
+  return make_checked(bound_lo(a), bound_hi(b));
 }
 
 Interval pow_int(const Interval& a, long n) {
@@ -105,16 +144,13 @@ bool promote_dec(py::handle h, DecoratedInterval& out) {
     out = py::cast<DecoratedInterval>(h);
     return true;
   }
+  Interval iv;
   if (py::isinstance<Interval>(h)) {
     out = pyintval::decorate(py::cast<Interval>(h));
     return true;
   }
-  if (py::isinstance<py::float_>(h) || py::isinstance<py::int_>(h)) {
-    const double v = py::cast<double>(h);
-    if (!std::isfinite(v)) {
-      throw py::value_error("cannot use a non-finite scalar as an interval operand");
-    }
-    out = pyintval::decorate(pyintval::point(v));
+  if (promote(h, iv)) {  // int -> enclosing interval, float -> point (with finite check)
+    out = pyintval::decorate(iv);
     return true;
   }
   return false;
@@ -439,7 +475,17 @@ continuous on its input box.
   di.def_static(
       "from_parts",
       [](const Interval& x, const std::string& d) {
-        return pyintval::decorate(x, decoration_from_str(d));
+        const Decoration dec = decoration_from_str(d);
+        // Reject decorations the interval cannot structurally support, so this
+        // API cannot mint a false certificate: com requires a common (bounded,
+        // nonempty) interval; def/dac require nonempty.
+        if (dec == Decoration::com && !pyintval::is_common(x)) {
+          throw py::value_error("decoration 'com' requires a bounded, nonempty interval");
+        }
+        if ((dec == Decoration::dac || dec == Decoration::def) && pyintval::is_empty(x)) {
+          throw py::value_error("decoration '" + d + "' requires a nonempty interval");
+        }
+        return pyintval::decorate(x, dec);
       },
       py::arg("interval"), py::arg("decoration"),
       "Build a decorated interval from a bare interval and an explicit decoration.");
@@ -500,9 +546,8 @@ continuous on its input box.
       py::arg("exponent"), py::arg("modulo") = py::none());
 
   di.def("__repr__", [](const DecoratedInterval& d) {
-    return "DecoratedInterval.from_parts(Interval('" +
-           (pyintval::is_empty(d.x) ? std::string("[empty]") : pyintval::interval_to_text(d.x)) +
-           "'), '" + decoration_name(d.dec) + "')";
+    // Use the exact (hex) interval repr so eval(repr(x)) reconstructs bit-for-bit.
+    return "DecoratedInterval.from_parts(" + repr(d.x) + ", '" + decoration_name(d.dec) + "')";
   });
   di.def("__str__", [](const DecoratedInterval& d) {
     return pyintval::interval_to_text(d.x) + "_" + decoration_name(d.dec);

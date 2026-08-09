@@ -71,15 +71,17 @@ inline Decoration newdec(const Interval& x) noexcept {
   return Decoration::dac;  // nonempty but unbounded
 }
 
-// Local decoration of a defined-and-continuous operation: com when every input
-// is common (so, by the extreme value theorem, the result is bounded too),
-// else dac. Empty result (only from an empty input) degrades to trv.
+// Local decoration of a defined-and-continuous operation: com requires every
+// input to be common AND the result to be common (bounded, nonempty). An
+// unbounded result -- e.g. exp near overflow, or cosh([709.8, 710]) reaching
+// +inf -- is only dac even from common inputs. Empty result (only from an empty
+// input) degrades to trv.
 inline Decoration cont_local(std::initializer_list<Interval> inputs, const Interval& y) noexcept {
   if (is_empty(y)) return Decoration::trv;
   for (const Interval& in : inputs) {
     if (!is_common(in)) return Decoration::dac;
   }
-  return Decoration::com;
+  return is_common(y) ? Decoration::com : Decoration::dac;
 }
 
 }  // namespace detail

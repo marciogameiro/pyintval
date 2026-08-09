@@ -238,8 +238,13 @@ inline Interval sin(const Interval& x) noexcept {
   if (!is_common(x)) return make(-1.0, 1.0);  // unbounded: full oscillation
   double lo = std::min(detail::lb(cr_sin(x.lo)), detail::lb(cr_sin(x.hi)));
   double hi = std::max(detail::ub(cr_sin(x.lo)), detail::ub(cr_sin(x.hi)));
-  if (detail::maybe_contains_mod(x, detail::kHalfPi, detail::kTwoPi)) hi = 1.0;
-  if (detail::maybe_contains_mod(x, detail::kThreeHalfPi, detail::kTwoPi)) lo = -1.0;
+  // A point interval cannot contain an interior extremum, so skip the extremum
+  // test (which, for large arguments, would loosely collapse the result to
+  // [-1, 1] even though cr_sin evaluates the exact value).
+  if (x.lo != x.hi) {
+    if (detail::maybe_contains_mod(x, detail::kHalfPi, detail::kTwoPi)) hi = 1.0;
+    if (detail::maybe_contains_mod(x, detail::kThreeHalfPi, detail::kTwoPi)) lo = -1.0;
+  }
   if (lo < -1.0) lo = -1.0;
   if (hi > 1.0) hi = 1.0;
   return make(lo, hi);
@@ -250,9 +255,12 @@ inline Interval cos(const Interval& x) noexcept {
   if (!is_common(x)) return make(-1.0, 1.0);
   double lo = std::min(detail::lb(cr_cos(x.lo)), detail::lb(cr_cos(x.hi)));
   double hi = std::max(detail::ub(cr_cos(x.lo)), detail::ub(cr_cos(x.hi)));
-  if (detail::maybe_contains_mod(x, detail::kZero, detail::kTwoPi)) hi = 1.0;  // cos=1 at 0 mod 2pi
-  if (detail::maybe_contains_mod(x, detail::kPi, detail::kTwoPi))
-    lo = -1.0;  // cos=-1 at pi mod 2pi
+  if (x.lo != x.hi) {
+    if (detail::maybe_contains_mod(x, detail::kZero, detail::kTwoPi))
+      hi = 1.0;  // cos=1 at 0 mod 2pi
+    if (detail::maybe_contains_mod(x, detail::kPi, detail::kTwoPi))
+      lo = -1.0;  // cos=-1 at pi mod 2pi
+  }
   if (lo < -1.0) lo = -1.0;
   if (hi > 1.0) hi = 1.0;
   return make(lo, hi);
@@ -261,9 +269,11 @@ inline Interval cos(const Interval& x) noexcept {
 inline Interval tan(const Interval& x) noexcept {
   if (is_empty(x)) return empty();
   // Unbounded, or spanning at least a full period, or possibly crossing an
-  // asymptote (pi/2 mod pi): the set-based image is the whole real line.
+  // asymptote (pi/2 mod pi): the set-based image is the whole real line. A point
+  // interval never straddles an asymptote (no double equals pi/2 + k*pi), so
+  // skip the (large-argument-loose) asymptote test for singletons.
   if (!is_common(x)) return entire();
-  if (detail::maybe_contains_mod(x, detail::kHalfPi, detail::kPi)) return entire();
+  if (x.lo != x.hi && detail::maybe_contains_mod(x, detail::kHalfPi, detail::kPi)) return entire();
   // No asymptote inside: tan is increasing on the single branch.
   return make(detail::lb(cr_tan(x.lo)), detail::ub(cr_tan(x.hi)));
 }

@@ -64,11 +64,23 @@ struct EftPair {
   double err;  // exact error: true result == val + err (when the EFT is exact)
 };
 
-// TwoSum (Knuth): a + b == val + err exactly, for all finite a, b.
+// TwoSum: a + b == val + err exactly whenever the rounded sum val is finite.
+//
+// Implemented as a magnitude-sorted FastTwoSum (Dekker) rather than the
+// branchless Knuth TwoSum. Knuth's `bb = s - a` can OVERFLOW to +-inf even when
+// s = RN(a+b) is finite (e.g. a ~ -2^1020, b ~ maxDouble), poisoning err with a
+// NaN and silently disabling the directed-rounding adjustment downstream. By
+// subtracting the LARGER-magnitude operand first, every intermediate is bounded
+// by the smaller operand's magnitude, so nothing overflows when s is finite --
+// and the FastTwoSum precondition |a| >= |b| makes err the exact rounding error.
 inline EftPair two_sum(double a, double b) noexcept {
   const double s = a + b;
-  const double bb = s - a;
-  const double err = (a - (s - bb)) + (b - bb);
+  double err;
+  if (std::fabs(a) >= std::fabs(b)) {
+    err = b - (s - a);
+  } else {
+    err = a - (s - b);
+  }
   return {s, err};
 }
 
