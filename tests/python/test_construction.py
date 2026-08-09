@@ -65,9 +65,15 @@ def test_infinite_point_raises():
 
 
 def test_repr_round_trips_exactly():
-    for x in [iv.Interval("0.1"), iv.Interval(1, 2), iv.Interval.empty(),
-              iv.Interval.entire(), iv.Interval(-3.5, 3.5), iv.Interval(2, math.inf)]:
-        assert eval(repr(x), {"Interval": iv.Interval}) == x  # noqa: S307
+    for x in [
+        iv.Interval("0.1"),
+        iv.Interval(1, 2),
+        iv.Interval.empty(),
+        iv.Interval.entire(),
+        iv.Interval(-3.5, 3.5),
+        iv.Interval(2, math.inf),
+    ]:
+        assert eval(repr(x), {"Interval": iv.Interval}) == x
 
 
 def test_str_is_readable_and_encloses():
@@ -78,10 +84,16 @@ def test_str_is_readable_and_encloses():
     assert x.subset(reparsed)  # I/O rounds outward
 
 
-@pytest.mark.parametrize("x", [
-    iv.Interval(1, 2), iv.Interval("0.1"), iv.Interval.empty(),
-    iv.Interval.entire(), iv.Interval(-math.inf, 5.0),
-])
+@pytest.mark.parametrize(
+    "x",
+    [
+        iv.Interval(1, 2),
+        iv.Interval("0.1"),
+        iv.Interval.empty(),
+        iv.Interval.entire(),
+        iv.Interval(-math.inf, 5.0),
+    ],
+)
 def test_pickle_and_copy(x):
     assert pickle.loads(pickle.dumps(x)) == x
     assert copy.copy(x) == x

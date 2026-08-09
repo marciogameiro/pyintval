@@ -10,7 +10,7 @@ plus algebraic identities and inclusion monotonicity.
 import math
 import operator
 
-from hypothesis import assume, given
+from hypothesis import given
 from hypothesis import strategies as st
 
 import pyintval as iv
@@ -18,8 +18,7 @@ import pyintval as iv
 I = iv.Interval
 
 # Finite doubles spanning a wide dynamic range, including subnormals and zero.
-finite = st.floats(allow_nan=False, allow_infinity=False,
-                   min_value=-1e100, max_value=1e100)
+finite = st.floats(allow_nan=False, allow_infinity=False, min_value=-1e100, max_value=1e100)
 
 
 @st.composite
@@ -56,9 +55,11 @@ def members(x, rng_vals):
 
 @given(intervals(), intervals(), st.lists(st.floats(0, 1), min_size=1, max_size=3))
 def test_containment_add_sub_mul(x, y, ts):
-    for op, f in [(operator.add, iv.Interval.__add__),
-                  (operator.sub, iv.Interval.__sub__),
-                  (operator.mul, iv.Interval.__mul__)]:
+    for op, f in [
+        (operator.add, iv.Interval.__add__),
+        (operator.sub, iv.Interval.__sub__),
+        (operator.mul, iv.Interval.__mul__),
+    ]:
         r = f(x, y)
         for a in members(x, ts):
             for b in members(y, ts):
@@ -80,13 +81,16 @@ def test_containment_division(x, y, ts):
                     assert val in r
 
 
-@given(intervals(allow_unbounded=False), st.integers(min_value=0, max_value=8),
-       st.lists(st.floats(0, 1), min_size=1, max_size=3))
+@given(
+    intervals(allow_unbounded=False),
+    st.integers(min_value=0, max_value=8),
+    st.lists(st.floats(0, 1), min_size=1, max_size=3),
+)
 def test_containment_pown(x, n, ts):
-    r = x ** n
+    r = x**n
     for a in members(x, ts):
         try:
-            val = a ** n
+            val = a**n
         except OverflowError:
             continue  # pointwise value exceeds DBL_MAX; r is unbounded there
         if math.isfinite(val):
@@ -103,7 +107,8 @@ def test_sqrt_contains_pointwise(x):
 
 @given(intervals())
 def test_neg_involution_and_sub_identity(x):
-    assert -(-x) == x
+    neg_x = -x
+    assert -neg_x == x  # negation is an involution
     y = I(-1.0, 2.0)
     assert (x - y) == (x + (-y))
 

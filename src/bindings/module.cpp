@@ -14,6 +14,7 @@
 #include <limits>
 #include <string>
 
+#include "pyintval/elementary.hpp"
 #include "pyintval/interval.hpp"
 #include "pyintval/text.hpp"
 
@@ -189,11 +190,12 @@ an unbounded interval (or the empty set) rather than raising.
       [](const Interval& a, py::object e, py::object mod) -> py::object {
         if (!mod.is_none()) return not_implemented();
         if (py::isinstance<py::int_>(e)) return py::cast(pow_int(a, py::cast<long>(e)));
+        if (py::isinstance<Interval>(e)) return py::cast(pyintval::pow(a, py::cast<Interval>(e)));
         if (py::isinstance<py::float_>(e)) {
           const double d = py::cast<double>(e);
           if (std::isfinite(d) && d == std::floor(d))
             return py::cast(pow_int(a, static_cast<long>(d)));
-          return not_implemented();  // real powers arrive with the transcendentals (M4)
+          return py::cast(pyintval::pow(a, pyintval::point(d)));  // real power via exp/log
         }
         return not_implemented();
       },
@@ -309,8 +311,43 @@ an unbounded interval (or the empty set) rather than raising.
       "abs_rev", [](const Interval& c, const Interval& x) { return pyintval::abs_rev(c, x); },
       py::arg("c"), py::arg("x"));
 
-  // Rigorous enclosure of pi (nearest double is below pi; widen up by one ulp).
+  // --- Elementary (transcendental) functions -------------------------------
+  // Each returns a rigorous enclosure of the true image over its input, built
+  // on correctly-rounded CORE-MATH kernels widened one ulp per endpoint.
+  m.def("exp", &pyintval::exp, py::arg("x"));
+  m.def("exp2", &pyintval::exp2, py::arg("x"));
+  m.def("exp10", &pyintval::exp10, py::arg("x"));
+  m.def("expm1", &pyintval::expm1, py::arg("x"));
+  m.def("log", &pyintval::log, py::arg("x"));
+  m.def("log2", &pyintval::log2, py::arg("x"));
+  m.def("log10", &pyintval::log10, py::arg("x"));
+  m.def("log1p", &pyintval::log1p, py::arg("x"));
+  m.def("cbrt", &pyintval::cbrt, py::arg("x"));
+  m.def("sin", &pyintval::sin, py::arg("x"));
+  m.def("cos", &pyintval::cos, py::arg("x"));
+  m.def("tan", &pyintval::tan, py::arg("x"));
+  m.def("asin", &pyintval::asin, py::arg("x"));
+  m.def("acos", &pyintval::acos, py::arg("x"));
+  m.def("atan", &pyintval::atan, py::arg("x"));
+  m.def("atan2", &pyintval::atan2, py::arg("y"), py::arg("x"));
+  m.def("sinh", &pyintval::sinh, py::arg("x"));
+  m.def("cosh", &pyintval::cosh, py::arg("x"));
+  m.def("tanh", &pyintval::tanh, py::arg("x"));
+  m.def("asinh", &pyintval::asinh, py::arg("x"));
+  m.def("acosh", &pyintval::acosh, py::arg("x"));
+  m.def("atanh", &pyintval::atanh, py::arg("x"));
+  m.def("hypot", &pyintval::hypot, py::arg("x"), py::arg("y"));
+  m.def("pow", &pyintval::pow, py::arg("x"), py::arg("y"),
+        "Rigorous x**y. A point integer y reduces to pown; otherwise the base "
+        "must be nonnegative (real power).");
+  m.def("erf", &pyintval::erf, py::arg("x"));
+  m.def("erfc", &pyintval::erfc, py::arg("x"));
+
+  // Rigorous enclosures of common constants.
   m.def(
-      "pi", []() { return pyintval::make(0x1.921fb54442d18p1, 0x1.921fb54442d19p1); },
+      "pi", []() { return pyintval::detail::kPi; },
       "A tight interval enclosing the mathematical constant pi.");
+  m.def(
+      "e", []() { return pyintval::exp(pyintval::point(1.0)); },
+      "A tight interval enclosing Euler's number e.");
 }

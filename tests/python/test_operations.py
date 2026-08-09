@@ -63,10 +63,11 @@ def test_integer_powers():
     assert (I(2, 3) ** 0) == I(1, 1)
 
 
-def test_float_integral_power_ok_real_power_deferred():
-    assert (I(2, 3) ** 2.0).endpoints == (4.0, 9.0)
-    with pytest.raises(TypeError):
-        _ = I(2, 3) ** 0.5  # real powers land with the transcendentals
+def test_float_and_real_powers():
+    assert (I(2, 3) ** 2.0).endpoints == (4.0, 9.0)  # integral float -> pown
+    assert 2**0.5 in (I(2) ** 0.5)  # real power via exp/log
+    assert 2.0 in (I(4) ** 0.5)
+    assert (I(2, 3) ** I(2)).endpoints == (4.0, 9.0)  # interval exponent
 
 
 def test_set_operations():
@@ -141,4 +142,4 @@ def test_empty_propagates_through_operations():
     assert (e + I(1, 2)).is_empty
     assert (I(1, 2) * e).is_empty
     assert iv.sqrt(e).is_empty
-    assert (e ** 2).is_empty
+    assert (e**2).is_empty

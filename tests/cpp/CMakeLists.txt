@@ -1,10 +1,15 @@
+# The elementary-function tests call the interval transcendentals, which are
+# backed by the vendored CORE-MATH C kernels; link them into the test binary
+# (${PYINTVAL_COREMATH_SOURCES} is defined in the top-level CMakeLists).
 add_executable(pyintval_cpp_tests
     test_sanity.cpp
     test_rounding.cpp
     test_rounding_hw.cpp
     test_interval_arith.cpp
     test_interval_sets.cpp
-    test_text.cpp)
+    test_text.cpp
+    test_elementary.cpp
+    ${PYINTVAL_COREMATH_SOURCES})
 target_include_directories(pyintval_cpp_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/include
     ${PROJECT_SOURCE_DIR}/third_party)
