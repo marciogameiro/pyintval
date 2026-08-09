@@ -45,4 +45,4 @@ TEST_CASE("subnormals are not flushed to zero") {
   CHECK(tiny / 2.0 > 0.0);
 }
 
-TEST_CASE("kernel ABI version is exported") { CHECK(pyintval::kernel_abi_version == 0); }
+TEST_CASE("kernel ABI version is exported") { CHECK(pyintval::kernel_abi_version == 1); }

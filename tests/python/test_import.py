@@ -9,7 +9,7 @@ def test_version_string():
 
 
 def test_kernel_abi_version():
-    assert pyintval.KERNEL_ABI_VERSION == 0
+    assert pyintval.KERNEL_ABI_VERSION == 1
 
 
 def test_build_info_reports_ieee754():
