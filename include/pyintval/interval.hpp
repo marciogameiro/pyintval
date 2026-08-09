@@ -46,6 +46,21 @@ struct Interval {
   double hi;
 };
 
+// GCC-only workaround for a -O2+ miscompilation. When two interval operations
+// are fused in one expression (e.g. add(x, neg(y))), GCC's optimizer produces
+// wrong code for the factories below -- most visibly returning the empty set
+// where the true result is a nonempty interval -- even though each operation is
+// correct in isolation (verified: correct at -O0/-O1 and under -fno-inline, no
+// UB per Clang's sanitizers, and Clang is unaffected over 300M+ cases). Marking
+// the two factories non-inline on GCC breaks the faulty fusion. They are tiny
+// and off the hot path for correctly-bounded results, so the cost is small and
+// paid only by GCC builds; Clang and clang-cl keep full inlining.
+#if defined(__GNUC__) && !defined(__clang__)
+#define PYINTVAL_NOINLINE_GCC [[gnu::noinline]]
+#else
+#define PYINTVAL_NOINLINE_GCC
+#endif
+
 namespace detail {
 // Zero endpoints are stored as +0.0 so that bitwise-identical canonical forms
 // exist ([-0.0, 0.0] and [0.0, 0.0] denote the same set); comparisons below
@@ -55,7 +70,7 @@ inline double canon_zero(double v) noexcept { return v == 0.0 ? 0.0 : v; }
 
 // --- Factories --------------------------------------------------------------
 
-inline Interval empty() noexcept { return {detail::kInf, -detail::kInf}; }
+PYINTVAL_NOINLINE_GCC inline Interval empty() noexcept { return {detail::kInf, -detail::kInf}; }
 inline Interval entire() noexcept { return {-detail::kInf, detail::kInf}; }
 
 // Valid bounds: lo <= hi, excluding the point-at-infinity cases [+inf,+inf]
@@ -67,7 +82,7 @@ inline bool valid_bounds(double lo, double hi) noexcept {
 
 // Construct from bounds; invalid bounds yield the empty set (the Python layer
 // raises instead, after calling valid_bounds itself).
-inline Interval make(double lo, double hi) noexcept {
+PYINTVAL_NOINLINE_GCC inline Interval make(double lo, double hi) noexcept {
   if (!valid_bounds(lo, hi)) return empty();
   return {detail::canon_zero(lo), detail::canon_zero(hi)};
 }
