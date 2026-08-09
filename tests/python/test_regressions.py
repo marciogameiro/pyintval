@@ -102,7 +102,7 @@ class TestFromPartsValidation:
 def test_decorated_repr_is_exact():
     for d in [DI("0.1"), DI(1, 2), DI(0, math.inf), iv.sqrt(DI(-1, 4)), DI.nai()]:
         ns = {"DecoratedInterval": DI, "Interval": iv.Interval}
-        assert eval(repr(d), ns) == d  # noqa: S307
+        assert eval(repr(d), ns) == d
 
 
 # Cross-check: the near-overflow parse (that used to hang) is reachable and safe

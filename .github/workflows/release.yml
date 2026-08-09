@@ -37,6 +37,11 @@ jobs:
           - { os: windows-latest, archs: AMD64 }
     steps:
       - uses: actions/checkout@v4
+      # clang-cl needs the MSVC headers/libs/Windows SDK on INCLUDE/LIB/PATH;
+      # these persist into the cibuildwheel build subprocess.
+      - name: Activate MSVC toolchain (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.21.3
         env:

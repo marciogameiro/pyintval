@@ -21,7 +21,12 @@ target_compile_features(pyintval_cpp_tests PRIVATE cxx_std_20)
 # cross-validate the EFT primitives bit-for-bit; that translation unit alone
 # must be compiled with strict floating-point semantics so the compiler does
 # not fold or reorder FP operations across the mode switches.
-if(MSVC)
+# Clang (incl. clang-cl on Windows) honors -frounding-math; plain MSVC uses
+# /fp:strict. Check the compiler id before the MSVC-abi flag so clang-cl, which
+# also sets MSVC, takes the Clang branch.
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  set_source_files_properties(test_rounding_hw.cpp PROPERTIES COMPILE_OPTIONS "-frounding-math")
+elseif(MSVC)
   set_source_files_properties(test_rounding_hw.cpp PROPERTIES COMPILE_OPTIONS "/fp:strict")
 else()
   set_source_files_properties(test_rounding_hw.cpp PROPERTIES COMPILE_OPTIONS "-frounding-math")

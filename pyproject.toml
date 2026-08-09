@@ -72,8 +72,11 @@ test-extras = ["test"]
 test-command = "pytest {project}/tests/python"
 
 [tool.cibuildwheel.windows]
-# CORE-MATH needs Clang/GCC features MSVC lacks; select the LLVM toolset.
-environment = { CMAKE_GENERATOR = "Visual Studio 17 2022", CMAKE_GENERATOR_TOOLSET = "ClangCL" }
+# CORE-MATH needs Clang/GCC features MSVC lacks; build with clang-cl + Ninja.
+# The MSVC toolchain environment (INCLUDE/LIB/Windows SDK that clang-cl links
+# against) is activated by ilammy/msvc-dev-cmd in the release workflow before
+# cibuildwheel runs, and inherited by the build subprocess.
+environment = { CMAKE_GENERATOR = "Ninja", CC = "clang-cl", CXX = "clang-cl" }
 
 [tool.pytest.ini_options]
 testpaths = ["tests/python"]

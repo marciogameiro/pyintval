@@ -11,9 +11,9 @@ concurrency:
   cancel-in-progress: true
 
 # The vendored CORE-MATH transcendental kernels need Clang/GCC features that
-# MSVC lacks, so on Windows every build selects the LLVM (ClangCL) toolset.
-# GitHub's windows-2022 image ships the "C++ Clang tools for Windows" VS
-# component, so no extra install is required.
+# MSVC lacks. On Windows we build with clang-cl driven by the Ninja generator,
+# with the MSVC toolchain environment (headers, libs, Windows SDK) activated by
+# ilammy/msvc-dev-cmd. clang-cl ships preinstalled on GitHub's Windows images.
 
 jobs:
   lint:
@@ -38,12 +38,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Select ClangCL toolset on Windows
+      - name: Activate MSVC toolchain (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+      - name: Select clang-cl + Ninja (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          echo "CMAKE_GENERATOR=Visual Studio 17 2022" >> "$GITHUB_ENV"
-          echo "CMAKE_GENERATOR_TOOLSET=ClangCL" >> "$GITHUB_ENV"
+          echo "CMAKE_GENERATOR=Ninja" >> "$GITHUB_ENV"
+          echo "CC=clang-cl" >> "$GITHUB_ENV"
+          echo "CXX=clang-cl" >> "$GITHUB_ENV"
       - name: Build and install
         run: pip install --verbose ".[test]"
       - name: Run pytest
@@ -57,12 +61,18 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Activate MSVC toolchain (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
       - name: Configure (Unix)
         if: runner.os != 'Windows'
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DPYINTVAL_BUILD_TESTS=ON
-      - name: Configure (Windows, ClangCL)
+      - name: Configure (Windows, clang-cl + Ninja)
         if: runner.os == 'Windows'
-        run: cmake -S . -B build -G "Visual Studio 17 2022" -T ClangCL -DPYINTVAL_BUILD_TESTS=ON
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl
+          -DCMAKE_BUILD_TYPE=Release -DPYINTVAL_BUILD_TESTS=ON
       - name: Build
         run: cmake --build build --config Release
       - name: Test
