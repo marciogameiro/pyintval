@@ -65,6 +65,13 @@ sdist.include = [
 # the cibuildwheel action version in release.yml.)
 skip = "pp* *-musllinux* *_i686 *-win32"
 build-frontend = "build"
+# Use the newer manylinux image (AlmaLinux 8, GCC 12) rather than the default
+# manylinux2014 (GCC 10). GCC 10 miscompiles the fused directed-rounding kernel
+# so badly that the extension segfaults at import; GCC 12 (like the GCC 13/14 on
+# the ubuntu-latest CI jobs) compiles it correctly. Cost: wheels require
+# glibc >= 2.28 (i.e. not RHEL/CentOS 7), which is fine for a modern package.
+manylinux-x86_64-image = "manylinux_2_28"
+manylinux-aarch64-image = "manylinux_2_28"
 # Every wheel is exercised against the full test suite (incl. the mpmath
 # oracle) so the ARM64 CORE-MATH fallbacks and the Windows ClangCL build are
 # verified on the actual target, not just reasoned about.
