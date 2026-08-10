@@ -4,7 +4,7 @@ All notable changes to pyintval are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project follows
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.2.0] — 2026-08-10
 
 ### Added
 
@@ -38,6 +38,13 @@ All notable changes to pyintval are documented here. The format is based on
   semantics — `0^{y>0}=0`, `0^0` undefined only for a base of exactly `{0}`,
   limit values at the `x=0` boundary otherwise — so such results are correct
   rigorous enclosures. Found by the ITF1788 conformance suite.
+- **Soundness: `cancel_minus`/`cancel_plus` near ±DBL_MAX on Linux.** GCC's `-O2`
+  optimizer miscompiled the cancellative operations' overflow path in the
+  header-only kernel, so the gcc-built (manylinux) wheels returned the empty set
+  for `cancel_minus([max, max], [-max, -max])` — whose true result is
+  `[max, +inf]` — instead of a valid enclosure. Pinned the two functions to `-O1`
+  on GCC (clang, and hence the macOS/Windows wheels, were never affected). Also
+  found by the ITF1788 conformance suite.
 
 ## [0.1.0] — 2026-08-10
 
@@ -71,4 +78,5 @@ First public release.
 - Prebuilt wheels for Linux (x86-64, aarch64), macOS (arm64, x86-64), and
   Windows (AMD64) on CPython 3.10–3.14.
 
+[0.2.0]: https://github.com/marciogameiro/pyintval/releases/tag/v0.2.0
 [0.1.0]: https://github.com/marciogameiro/pyintval/releases/tag/v0.1.0

@@ -68,6 +68,9 @@ print(iv.sqrt(iv.DecoratedInterval(-1.0, 4.0)).decoration)  # 'trv'
   that certifies, through any composition, whether the evaluated function is
   defined and continuous on its input — the hypothesis many computer-assisted
   proofs require.
+- **Conformance-tested.** Validated against the [ITF1788](https://github.com/oheim/ITF1788)
+  reference suite for IEEE 1788-2015 (~7,200 cases); every result is checked to
+  enclose the standard's tightest interval, gated in CI on every release.
 
 See the {doc}`guide` for the guarantees in detail, or the {doc}`api` for the
 full reference.
