@@ -33,6 +33,16 @@ endif()
 option(PYINTVAL_BUILD_BINDINGS "Build the pybind11 extension module" ${_pyintval_bindings_default})
 option(PYINTVAL_BUILD_TESTS "Build the C++ unit tests" ${_pyintval_tests_default})
 
+# macOS libm has no C23 roundeven, but newer Clang lowers CORE-MATH's
+# __builtin_roundeven into a *call* to it on x86_64 unless SSE4.1 is enabled --
+# producing an "undefined symbol _roundeven" at wheel-import time. Enable SSE4.1
+# so it inlines to ROUNDSD instead. (Linux glibc provides roundeven; unneeded
+# and skipped there. All Intel Macs have SSE4.1.)
+if(APPLE AND (CMAKE_OSX_ARCHITECTURES MATCHES "x86_64"
+   OR (NOT CMAKE_OSX_ARCHITECTURES AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")))
+  add_compile_options(-msse4.1)
+endif()
+
 # Vendored CORE-MATH kernels. Each <fn>.c is self-contained: its #include "..."
 # directives resolve relative to its own directory, so no include paths are
 # needed (and must not be added -- the several dint.h copies are not identical).
