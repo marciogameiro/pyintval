@@ -43,6 +43,41 @@ The string parser converts each literal with correct directed rounding, using
 exact big-integer comparison, so `"0.5"` yields the exact point `[0.5, 0.5]`
 while `"0.1"` yields the tightest straddling interval.
 
+## Text literal forms
+
+`Interval(...)` accepts the IEEE 1788 text grammar, always rounding outward so
+the parsed interval provably encloses the intended value:
+
+| Form | Example | Result |
+|---|---|---|
+| decimal / hex-float point | `"0.1"`, `"0x1.8p1"` | tightest enclosing point |
+| inf-sup | `"[1, 2]"`, `"[1.2e-3, 4]"` | `[RD(lo), RU(hi)]` |
+| single number | `"[1.5]"` | `[1.5, 1.5]` |
+| half-bounded | `"[1,]"`, `"[,2]"`, `"[,]"` | `[1, +inf]`, `[-inf, 2]`, entire |
+| empty / entire | `"[empty]"`, `"[]"`, `"[entire]"` | the empty set / entire |
+| uncertain | `"3.56?1"`, `"-10?u"` | midpoint ± radius in ulps |
+
+The **uncertain form** `m?rad` means the midpoint `m` plus or minus `rad` units
+in `m`'s last decimal place (half a unit if `rad` is omitted); a trailing `u`/`d`
+makes it one-sided, and a trailing exponent scales the whole thing:
+
+```python
+iv.Interval("3.56?1")      # [3.55, 3.57]
+iv.Interval("-10?")        # [-10.5, -9.5]
+iv.Interval("3.56?1e2")    # [355, 357]
+```
+
+A `DecoratedInterval` literal may carry an explicit `_dec` suffix (case
+insensitive); the decoration is validated — it may not over-claim — and `"[nai]"`
+or an invalid decoration yields NaI. With no suffix the tightest decoration is
+assigned:
+
+```python
+iv.DecoratedInterval("[1, 2]_com")   # [1, 2]_com
+iv.DecoratedInterval("[entire]")     # [entire]_dac
+iv.DecoratedInterval("[empty]_com")  # NaI — empty cannot be 'com'
+```
+
 ## Set-based semantics
 
 pyintval implements the IEEE 1788-2015 *set-based* flavor. Operations never
@@ -114,3 +149,13 @@ print(f(D(1, 2), D(0.5, 1.5)).decoration)              # 'trv': y-1 straddles 0
 
 This is exactly the hypothesis needed by many computer-assisted proofs
 (isolation, Conley index, Morse graph validity).
+
+## Standards conformance
+
+pyintval implements the set-based flavor of **IEEE Std 1788-2015**. It is
+validated against [ITF1788](https://github.com/oheim/ITF1788), the reference
+conformance suite for the standard (~7,200 cases): every result is checked to
+*enclose* the standard's tightest interval, and each release gates on that rigor
+property in continuous integration. The transcendental functions are correctly
+rounded and then widened one ulp per endpoint, so they always enclose but are
+intentionally not bit-for-bit *tightest*.

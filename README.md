@@ -5,10 +5,9 @@
 **Rigorous interval arithmetic for Python** — every operation returns an
 interval that is mathematically guaranteed to contain the true result.
 
-> **Status: under active development.** The rigorous kernel, the Python
-> bindings, and the full set of elementary functions are implemented and
-> tested; packaging polish (wheels, docs) and decorated intervals are in
-> progress.
+> **Released on PyPI**, with prebuilt wheels for Linux, macOS, and Windows on
+> CPython 3.10–3.14. Validated against the [ITF1788](https://github.com/oheim/ITF1788)
+> reference conformance suite for IEEE 1788-2015.
 
 ## What it provides
 
@@ -29,11 +28,11 @@ interval that is mathematically guaranteed to contain the true result.
   inputs, and the rounding primitives cross-checked bit-for-bit against
   hardware directed rounding.
 
-Planned: decorated intervals (a machine-checked certificate that a composed
-function is defined and continuous on its input box), NumPy-style interval
-arrays, and prebuilt wheels on PyPI.
+Also provides **decorated intervals** — a machine-checked certificate that a
+composed function is defined and continuous on its input box. NumPy-style
+interval arrays are planned.
 
-## Planned API (illustrative)
+## At a glance
 
 ```python
 import pyintval as iv
