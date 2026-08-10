@@ -57,8 +57,14 @@ struct Interval {
 // paid only by GCC builds; Clang and clang-cl keep full inlining.
 #if defined(__GNUC__) && !defined(__clang__)
 #define PYINTVAL_NOINLINE_GCC [[gnu::noinline]]
+// A few functions whose fused overflow paths GCC's -O2 optimizer miscompiles
+// (returning the empty set where the true result is nonempty) but compiles
+// correctly at -O1; pin just those to -O1 on GCC. Clang and clang-cl are
+// unaffected and keep -O2.
+#define PYINTVAL_O1_GCC [[gnu::optimize("O1")]]
 #else
 #define PYINTVAL_NOINLINE_GCC
+#define PYINTVAL_O1_GCC
 #endif
 
 namespace detail {
@@ -522,7 +528,7 @@ inline Interval pown(const Interval& x, int n) noexcept {
 // cancelMinus(a, b): the tightest z with b + z == a, when a is a translate of
 // a superset of b (wid(a) >= wid(b)); otherwise no such z exists and the
 // result is entire. Unbounded operands never qualify.
-inline Interval cancel_minus(const Interval& a, const Interval& b) noexcept {
+PYINTVAL_O1_GCC inline Interval cancel_minus(const Interval& a, const Interval& b) noexcept {
   // Empty a: z = empty satisfies b + z == a whenever b is empty or bounded;
   // an unbounded b admits no z at all. Nonempty a with empty or unbounded
   // operand likewise admits no z: the undefined cases yield entire.
@@ -544,7 +550,7 @@ inline Interval cancel_minus(const Interval& a, const Interval& b) noexcept {
   return make(lo, hi);
 }
 
-inline Interval cancel_plus(const Interval& a, const Interval& b) noexcept {
+PYINTVAL_O1_GCC inline Interval cancel_plus(const Interval& a, const Interval& b) noexcept {
   return cancel_minus(a, neg(b));
 }
 

@@ -48,6 +48,23 @@ TEST_CASE("regression: cancel_minus returns Entire when a sum overflows") {
   CHECK(is_entire(r));
 }
 
+// Bug (found by the ITF1788 suite on the gcc-built Linux wheels): GCC -O2
+// miscompiled cancel_minus's fused overflow path, returning the EMPTY set for
+// cancelMinus([max,max], [-max,-max]) whose result is [max, +inf] (the upper
+// endpoint overflows). Clang was correct; GCC was correct at -O1. Fixed by
+// pinning cancel_minus/cancel_plus to -O1 on GCC (PYINTVAL_O1_GCC). This test
+// runs at -O2 in the C++ suite, so it fails on an unfixed GCC build.
+TEST_CASE("regression: cancelMinus/Plus near +-max enclose (GCC -O2 miscompile)") {
+  const Interval z = cancel_minus(make(kMax, kMax), make(-kMax, -kMax));
+  CHECK(!is_empty(z));
+  CHECK(z.lo == kMax);
+  CHECK(z.hi == kInfv);
+  const Interval p = cancel_plus(make(kMax, kMax), make(kMax, kMax));
+  CHECK(!is_empty(p));
+  CHECK(p.lo == kMax);
+  CHECK(p.hi == kInfv);
+}
+
 // Bug: sin/cos/tan of a large-magnitude POINT collapsed to [-1,1] / entire
 // because the periodic-extremum test fired on the loose argument reduction,
 // discarding the exact CORE-MATH value.

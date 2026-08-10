@@ -136,3 +136,17 @@ class TestPowBaseZero:
         # x < 1 with y -> -inf gives +inf; the corner must not vanish.
         assert iv.pow(I(0.1, 0.5), I(-math.inf, 0.1)).hi == math.inf
         assert iv.pow(I(0.1, 0.5), I.entire()) == I(0, math.inf)
+
+
+# Bug (found by the ITF1788 suite on the gcc-built Linux wheels): GCC -O2
+# miscompiled cancel_minus's fused overflow path, returning [empty] for
+# cancel_minus([max,max], [-max,-max]) whose true result is [max, +inf] (the
+# upper endpoint overflows). Fixed by pinning cancel_minus/cancel_plus to -O1 on
+# GCC. Checked through the bindings so the gcc-built wheels are covered here too.
+def test_cancel_near_max_does_not_collapse_to_empty():
+    m = float.fromhex("0x1.fffffffffffffp+1023")  # DBL_MAX
+    z = iv.cancel_minus(I(m, m), I(-m, -m))
+    assert not z.is_empty
+    assert z.endpoints == (m, math.inf)
+    p = iv.cancel_plus(I(m, m), I(m, m))
+    assert p.endpoints == (m, math.inf)
