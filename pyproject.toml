@@ -59,11 +59,12 @@ sdist.include = [
 ]
 
 [tool.cibuildwheel]
-# Build every CPython the installed cibuildwheel supports at or above the
-# project's requires-python floor (3.10); skip PyPy, musllinux, and 32-bit.
-# (Not enumerating cpXY keeps this working as newer Pythons appear -- just bump
-# the cibuildwheel action version in release.yml.)
-skip = "pp* *-musllinux* *_i686 *-win32"
+# Build every stable CPython the installed cibuildwheel supports at or above the
+# project's requires-python floor (3.10). PyPy and free-threaded builds are
+# opt-in in cibuildwheel and left disabled, so only musllinux and 32-bit targets
+# need skipping. (Not enumerating cpXY keeps this working as newer Pythons
+# appear -- just bump the cibuildwheel action version in release.yml.)
+skip = "*-musllinux* *_i686 *-win32"
 build-frontend = "build"
 # Use the newer manylinux image (AlmaLinux 8, GCC 12) rather than the default
 # manylinux2014 (GCC 10). GCC 10 miscompiles the fused directed-rounding kernel
