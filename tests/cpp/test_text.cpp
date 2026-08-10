@@ -179,11 +179,32 @@ TEST_CASE("malformed inputs are rejected") {
   const char* bad[] = {"",        "inf",  "nan",   "[inf,inf]", "[-inf,-inf]", "[2,1]",
                        "1.2.3",   "1e",   "1e+",   "0x",        ".",           "e5",
                        "[1,2",    "1,2]", "--1",   "1 2",       "0x1.p",       "abc",
-                       "[1,2,3]", "1/3",  "3.5?1", "[nan]",     "[1, nan]"};
+                       "[1,2,3]", "1/3",  "3.5?x", "[nan]",     "[1, nan]"};
   for (const char* s : bad) {
     CAPTURE(s);
     CHECK(rejects(s));
   }
+}
+
+TEST_CASE("uncertain form d?ruE (F4)") {
+  // Exactly representable endpoints are pinned bit-for-bit.
+  CHECK(bit_equal(parse("-10?"), make(-10.5, -9.5)));   // half-ulp default radius
+  CHECK(bit_equal(parse("-10?u"), make(-10.0, -9.5)));  // one-sided up
+  CHECK(bit_equal(parse("-10?12"), make(-22.0, 2.0)));  // radius of 12 ulps
+  CHECK(bit_equal(parse("3.56?1e2"), make(355.0, 357.0)));
+  CHECK(parse("0.0?u").lo == 0.0);  // up starts exactly at the midpoint
+  CHECK(parse("0.0?d").hi == 0.0);
+  // Inexact endpoints: the exact midpoint +- radius is rigorously enclosed.
+  const Interval x = parse("3.56?1");  // [3.55, 3.57]
+  CHECK((x.lo <= 3.55 && 3.57 <= x.hi));
+  CHECK(is_member(3.56, x));
+}
+
+TEST_CASE("half-bounded and empty inf-sup literals (F4)") {
+  CHECK(is_entire(parse("[,]")));
+  CHECK(bit_equal(parse("[1,]"), make(1.0, detail::kInf)));
+  CHECK(bit_equal(parse("[,2]"), make(-detail::kInf, 2.0)));
+  CHECK(bit_equal(parse("[-1,]"), make(-1.0, detail::kInf)));
 }
 
 // Enclosure is the rigorous I/O contract: re-parsing formatted text yields a

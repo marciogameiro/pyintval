@@ -140,6 +140,24 @@ TEST_CASE("pow: integer exponents match pown; real powers via nonnegative base")
   CHECK(is_empty(pow(make(-3.0, -1.0), point(0.5))));
 }
 
+TEST_CASE("pow: IEEE 1788 semantics at the base-zero boundary (F2 regression)") {
+  // Base exactly {0}: 0^{y>0} = 0, while 0^0 and 0^{y<0} are undefined.
+  CHECK(equal(pow(point(0.0), make(0.0, 1.0)), make(0.0, 0.0)));
+  CHECK(is_empty(pow(point(0.0), point(0.0))));   // 0^0 undefined
+  CHECK(is_empty(pow(point(0.0), point(-1.0))));  // 0^-1 undefined
+  // Base spanning 0: the x = 0 boundary contributes limit values.
+  CHECK(equal(pow(make(0.0, 0.5), point(0.0)), make(1.0, 1.0)));     // x^0 = 1
+  CHECK(equal(pow(make(0.0, 0.5), point(1.0)), make(0.0, 0.5)));     // integer exp via pown
+  CHECK(equal(pow(make(0.0, 0.5), point(-1.0)), make(2.0, kInfv)));  // 0^-1 -> +inf limit
+  // Non-integer exponent with a base touching 0 must ENCLOSE, not collapse to
+  // empty (the pre-fix bug): {0} and 0.5^2.5 both lie in the result.
+  const Interval r = pow(make(0.0, 0.5), point(2.5));
+  CHECK(holds(0.0, r));
+  CHECK(holds(std::pow(0.5, 2.5), r));
+  // Base < 1 with exponent reaching -inf: the supremum is +inf.
+  CHECK(pow(make(0.1, 0.5), make(-kInfv, 0.1)).hi == kInfv);
+}
+
 TEST_CASE("atan2 quadrants and branch cut") {
   CHECK(holds(std::atan2(1.0, 1.0), atan2(point(1.0), point(1.0))));    // ~ pi/4
   CHECK(holds(std::atan2(1.0, -1.0), atan2(point(1.0), point(-1.0))));  // ~ 3pi/4

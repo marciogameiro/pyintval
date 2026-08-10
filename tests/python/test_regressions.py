@@ -111,3 +111,28 @@ def test_near_overflow_literal_does_not_hang():
     x = I("1.79769313486231577e308")
     assert x.lo == 1.7976931348623157e308
     assert x.hi == math.inf
+
+
+# Bug (F2, found by the ITF1788 conformance suite): pow(x, y) with a base
+# touching 0 returned [empty] via exp(y * log(0)) instead of the IEEE 1788
+# continuity value. pow is defined for base x >= 0; the x = 0 boundary
+# contributes limit values, except that for a base of exactly {0} the point 0^0
+# is undefined and 0^{y<=0} is excluded.
+class TestPowBaseZero:
+    def test_pure_zero_base(self):
+        assert iv.pow(I(0, 0), I(0, 1)) == I(0, 0)  # 0^{y>0} = 0
+        assert iv.pow(I(0, 0), I(0, 0)).is_empty  # 0^0 undefined
+        assert iv.pow(I(0, 0), I(-1, -1)).is_empty  # 0^-1 undefined
+        assert iv.pow(I(0, 0), I(0, 2.5)) == I(0, 0)
+
+    def test_base_spanning_zero_encloses(self):
+        # Was [empty] before the fix; must now enclose the true range.
+        r = iv.pow(I(0, 0.5), I(2.5, 2.5))
+        assert 0.0 in r and 0.5**2.5 in r
+        assert iv.pow(I(0, 0.5), I(0, 0)) == I(1, 1)  # x^0 = 1
+        assert iv.pow(I(0, 0.5), I(-1, -1)) == I(2, math.inf)  # 0^-1 -> +inf
+
+    def test_base_below_one_negative_infinite_exponent(self):
+        # x < 1 with y -> -inf gives +inf; the corner must not vanish.
+        assert iv.pow(I(0.1, 0.5), I(-math.inf, 0.1)).hi == math.inf
+        assert iv.pow(I(0.1, 0.5), I.entire()) == I(0, math.inf)

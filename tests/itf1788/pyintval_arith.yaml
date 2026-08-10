@@ -1,0 +1,199 @@
+# ITF1788 arithmetic-library plugin for pyintval (Python target).
+#
+# ITF1788 (https://github.com/oheim/ITF1788, Apache-2.0) is the reference
+# conformance test framework for IEEE Std 1788-2015. It compiles its .itl test
+# corpus into unit tests for a target library using three plugins: a language
+# plugin (python/lang.yaml), a test-framework plugin (python/test/unittest), and
+# THIS arithmetic-library plugin, which maps each IEEE 1788 operation name to the
+# corresponding pyintval Python API. Installed at
+# plugins/python/arith/pyintval/arith.yaml and selected with the configuration
+# triple "(python, unittest, pyintval)".
+#
+# Modeled on ITF1788's own libieeep1788 (C++) and pyIbex (Python) templates.
+# Because pyintval is a full IEEE 1788 set-based flavor, far more operations are
+# enabled here than in the (non-set-based) pyIbex template. Operations pyintval
+# does not implement are left unset; ITF1788 then skips the tests that need them
+# (see tests/itf1788/README.md for the documented coverage gaps). Each .itl test
+# is a single operation applied to literal operands, so no operand is ever a
+# composite sub-expression -- operator precedence in these templates is safe.
+
+# --- module setup ---------------------------------------------------------- #
+imports: |
+    import pyintval as iv
+preamble: |
+    from pyintval import Interval, DecoratedInterval
+
+    # IEEE 1788 numeric functions and comparisons act on the interval part, so
+    # unwrap a decorated operand and let one mapping serve both bare and
+    # decorated intervals. (Result equality, by contrast, uses the decorated
+    # ``==`` directly so the decoration is checked too.)
+    def _iv(x):
+        return x.interval if isinstance(x, DecoratedInterval) else x
+
+    def _isnai(x):
+        return x.is_nai if isinstance(x, DecoratedInterval) else False
+
+    # IEEE 1788 textToInterval recovers from an invalid literal to empty (bare)
+    # or NaI (decorated); pyintval's constructors instead raise on a genuinely
+    # malformed string, so translate that here. Both the inf-sup/uncertain forms
+    # and the "[a,b]_dec" decorated syntax are parsed natively by pyintval.
+    def _btext(s):
+        try:
+            return Interval(s)
+        except ValueError:
+            return Interval.empty()
+
+    def _dtext(s):
+        try:
+            return DecoratedInterval(s)
+        except ValueError:
+            return DecoratedInterval.nai()
+
+    # numsToInterval(a, b): invalid bounds (a > b, NaN, or an infinite point)
+    # recover to empty/NaI the same way.
+    def _bnums(a, b):
+        try:
+            return Interval(a, b)
+        except ValueError:
+            return Interval.empty()
+
+    def _dnums(a, b):
+        try:
+            return DecoratedInterval(a, b)
+        except ValueError:
+            return DecoratedInterval.nai()
+
+# --- interval literals ----------------------------------------------------- #
+empty_interval_double: Interval.empty()
+entire_interval_double: Interval.entire()
+nai_interval_double: DecoratedInterval.nai()
+inf_sup_interval_double: Interval($ARG1, $ARG2)
+
+# Decorated intervals: force the stated decoration (a bare constructor would
+# instead assign the tightest one, which differs for e.g. [1,2]_trv).
+decorated_empty_interval_double: DecoratedInterval.from_parts(Interval.empty(), $DEC)
+decorated_entire_interval_double: DecoratedInterval.from_parts(Interval.entire(), $DEC)
+decorated_inf_sup_interval_double: DecoratedInterval.from_parts(Interval($ARG1, $ARG2), $DEC)
+
+# Decoration constants are pyintval decoration strings.
+decorator_com: '"com"'
+decorator_dac: '"dac"'
+decorator_def: '"def"'
+decorator_trv: '"trv"'
+decorator_ill: '"ill"'
+decorator_less_equals: ($ARG1 <= $ARG2)
+decorator_greater_equals: ($ARG1 >= $ARG2)
+
+# --- constructors ---------------------------------------------------------- #
+op_b-numsToInterval*: _bnums($ARG1, $ARG2)
+op_b-textToInterval*: _btext($ARG1)
+op_d-numsToInterval*: _dnums($ARG1, $ARG2)
+op_d-textToInterval*: _dtext($ARG1)
+op_setDec*: DecoratedInterval.from_parts($ARG1, $ARG2)
+op_newDec*: DecoratedInterval($ARG1)
+
+# --- cancellative addition / subtraction ----------------------------------- #
+op_cancelMinus*: iv.cancel_minus($ARG1, $ARG2)
+op_cancelPlus*: iv.cancel_plus($ARG1, $ARG2)
+
+# --- set operations -------------------------------------------------------- #
+op_intersection*: iv.intersection($ARG1, $ARG2)
+op_convexHull*: iv.hull($ARG1, $ARG2)
+
+# --- basic arithmetic ------------------------------------------------------ #
+op_pos*: +$ARG1
+op_neg*: -($ARG1)
+op_add*: $ARG1 + $ARG2
+op_sub*: $ARG1 - $ARG2
+op_mul*: $ARG1 * $ARG2
+op_div*: $ARG1 / $ARG2
+op_recip*: iv.recip($ARG1)
+op_sqr*: iv.sqr($ARG1)
+op_sqrt*: iv.sqrt($ARG1)
+op_fma*: iv.fma($ARG1, $ARG2, $ARG3)
+
+# --- power / exp / log ----------------------------------------------------- #
+op_pown*: iv.pown($ARG1, $ARG2)
+op_pow*: iv.pow($ARG1, $ARG2)
+op_exp*: iv.exp($ARG1)
+op_exp2*: iv.exp2($ARG1)
+op_exp10*: iv.exp10($ARG1)
+op_log*: iv.log($ARG1)
+op_log2*: iv.log2($ARG1)
+op_log10*: iv.log10($ARG1)
+
+# --- trigonometric / hyperbolic -------------------------------------------- #
+op_sin*: iv.sin($ARG1)
+op_cos*: iv.cos($ARG1)
+op_tan*: iv.tan($ARG1)
+op_asin*: iv.asin($ARG1)
+op_acos*: iv.acos($ARG1)
+op_atan*: iv.atan($ARG1)
+op_atan2*: iv.atan2($ARG1, $ARG2)
+op_sinh*: iv.sinh($ARG1)
+op_cosh*: iv.cosh($ARG1)
+op_tanh*: iv.tanh($ARG1)
+op_asinh*: iv.asinh($ARG1)
+op_acosh*: iv.acosh($ARG1)
+op_atanh*: iv.atanh($ARG1)
+
+# --- rounding / integer-valued --------------------------------------------- #
+op_sign*: iv.sign($ARG1)
+op_ceil*: iv.ceil($ARG1)
+op_floor*: iv.floor($ARG1)
+op_trunc*: iv.trunc($ARG1)
+op_roundTiesToEven*: iv.round($ARG1)
+op_roundTiesToAway*: iv.round_ties_to_away($ARG1)
+
+# --- abs / min / max ------------------------------------------------------- #
+op_abs*: iv.abs($ARG1)
+op_min*: iv.min($ARG1, $ARG2)
+op_max*: iv.max($ARG1, $ARG2)
+
+# --- numeric functions of intervals (return doubles) ----------------------- #
+op_inf*: _iv($ARG1).lo
+op_sup*: _iv($ARG1).hi
+op_mid*: _iv($ARG1).mid
+op_wid*: _iv($ARG1).wid
+op_rad*: _iv($ARG1).rad
+op_mag*: _iv($ARG1).mag
+op_mig*: _iv($ARG1).mig
+
+# --- boolean functions of intervals (act on the interval part) ------------- #
+op_equal*: _iv($ARG1) == _iv($ARG2)
+op_subset*: _iv($ARG1).subset(_iv($ARG2))
+op_interior*: _iv($ARG1).is_interior_to(_iv($ARG2))
+op_disjoint*: _iv($ARG1).is_disjoint(_iv($ARG2))
+op_isEmpty*: _iv($ARG1).is_empty
+op_isEntire*: _iv($ARG1).is_entire
+op_isNaI*: _isnai($ARG1)
+op_less*: _iv($ARG1).less(_iv($ARG2))
+op_strictLess*: _iv($ARG1).strict_less(_iv($ARG2))
+op_precedes*: _iv($ARG1).precedes(_iv($ARG2))
+op_strictPrecedes*: _iv($ARG1).strict_precedes(_iv($ARG2))
+op_isCommonInterval*: _iv($ARG1).is_common
+op_isSingleton*: _iv($ARG1).is_singleton
+op_isMember*: _iv($ARG2).contains($ARG1)
+
+# --- decoration accessor --------------------------------------------------- #
+op_decorationPart*: $ARG1.decoration
+
+# --- reverse-mode (constraint) operations pyintval implements -------------- #
+op_absRev*: iv.abs_rev($ARG1)
+op_absRevBin*: iv.abs_rev($ARG1, $ARG2)
+op_sqrRev*: iv.sqr_rev($ARG1)
+op_sqrRevBin*: iv.sqr_rev($ARG1, $ARG2)
+op_mulRev*: iv.mul_rev($ARG1, $ARG2)
+op_mulRevTen*: iv.mul_rev($ARG1, $ARG2, $ARG3)
+
+# --- exceptions ------------------------------------------------------------ #
+# pyintval is set-based and never signals mid-computation (empty/entire
+# propagate), so exception predicates are left empty: ITF1788 then emits the
+# interval-equality checks and treats the `signal` clauses as no-ops.
+exception_UndefinedOperation:
+exception_PossiblyUndefinedOperation:
+exception_InvalidOperand:
+exception_IntvlPartOfNaI:
+exception_IntvlOverflow:
+exception_no_exception:
+clear_exceptions:

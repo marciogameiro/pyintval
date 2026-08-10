@@ -373,6 +373,95 @@ inline bool bracket(const ParsedReal& pr, double& rd, double& ru) {
   return true;
 }
 
+// IEEE 1788 uncertain form: "m?rad<dir><exp>" -- m is a decimal midpoint, the
+// radius is `rad` ulps of m's last decimal place (or half an ulp if `rad` is
+// absent), `dir` (u/d) makes it one-sided, and a trailing exponent scales the
+// whole thing by 10^exp. Examples: 3.56?1 -> [3.55,3.57], -10? -> [-10.5,-9.5],
+// 0.0?2u -> [0.0,0.02], 3.56?1e2 -> [355,357]. Both endpoints are exact decimals,
+// so we build "<int>e<exp>" strings and reuse parse_real/bracket for correct
+// outward rounding (lower endpoint down, upper endpoint up).
+inline bool parse_uncertain(std::string_view s, double& lo, double& hi) {
+  const size_t q = s.find('?');
+  if (q == std::string_view::npos) return false;
+  const std::string_view mant = s.substr(0, q);
+  const std::string_view rest = s.substr(q + 1);
+  constexpr long long kGuard = 900000000000000000LL;  // keep int64 arithmetic safe
+
+  // Midpoint mantissa: [sign] digits [. digits], with no exponent of its own.
+  int sign = 1;
+  size_t i = 0;
+  if (!mant.empty() && (mant[i] == '+' || mant[i] == '-')) {
+    sign = (mant[i] == '-') ? -1 : 1;
+    ++i;
+  }
+  long long m = 0;
+  int frac = 0;
+  bool seen_dot = false, any = false;
+  for (; i < mant.size(); ++i) {
+    const char c = mant[i];
+    if (c == '.') {
+      if (seen_dot) return false;
+      seen_dot = true;
+      continue;
+    }
+    if (c < '0' || c > '9' || m > kGuard) return false;
+    m = m * 10 + (c - '0');
+    if (seen_dot) ++frac;
+    any = true;
+  }
+  if (!any) return false;
+
+  size_t j = 0;
+  long long rad = 0;
+  bool have_rad = false;
+  while (j < rest.size() && rest[j] >= '0' && rest[j] <= '9') {
+    if (rad > kGuard) return false;
+    rad = rad * 10 + (rest[j] - '0');
+    have_rad = true;
+    ++j;
+  }
+  char dir = 0;
+  if (j < rest.size() && (rest[j] == 'u' || rest[j] == 'd' || rest[j] == 'U' || rest[j] == 'D')) {
+    dir = static_cast<char>(rest[j] | 0x20);  // to lower
+    ++j;
+  }
+  int exp = 0;
+  if (j < rest.size() && (rest[j] == 'e' || rest[j] == 'E')) {
+    ++j;
+    int esign = 1;
+    if (j < rest.size() && (rest[j] == '+' || rest[j] == '-')) {
+      esign = (rest[j] == '-') ? -1 : 1;
+      ++j;
+    }
+    if (j >= rest.size() || rest[j] < '0' || rest[j] > '9') return false;
+    long e = 0;
+    while (j < rest.size() && rest[j] >= '0' && rest[j] <= '9') {
+      e = e * 10 + (rest[j] - '0');
+      if (e > 1000000) e = 1000000;
+      ++j;
+    }
+    exp = static_cast<int>(esign * e);
+  }
+  if (j != rest.size()) return false;  // trailing garbage
+
+  // A half-ulp default radius is handled by scaling the whole thing by 10 so the
+  // radius (5) and midpoint stay integers; the unit's decimal exponent absorbs it.
+  const long long scale = have_rad ? 1 : 10;
+  const long long r = have_rad ? rad : 5;
+  const long long mid = sign * m * scale;
+  const int unit_exp = -frac - (have_rad ? 0 : 1) + exp;
+  const long long lo_val = (dir == 'u') ? mid : mid - r;
+  const long long hi_val = (dir == 'd') ? mid : mid + r;
+
+  const ParsedReal plo = parse_real(std::to_string(lo_val) + "e" + std::to_string(unit_exp));
+  const ParsedReal phi = parse_real(std::to_string(hi_val) + "e" + std::to_string(unit_exp));
+  double lrd, lru, urd, uru;
+  if (!bracket(plo, lrd, lru) || !bracket(phi, urd, uru)) return false;
+  lo = lrd;  // lower endpoint rounds down (outward)
+  hi = uru;  // upper endpoint rounds up (outward)
+  return true;
+}
+
 // --- Formatting -------------------------------------------------------------
 
 inline std::string format_double(double x) {
@@ -425,18 +514,33 @@ inline bool text_to_interval(std::string_view s, Interval& out) {
       out = make(rd, ru);
       return true;
     }
-    const ParsedReal pl = parse_real(trim(inner.substr(0, comma)));
-    const ParsedReal pu = parse_real(trim(inner.substr(comma + 1)));
-    double lrd, lru, urd, uru;
-    if (!bracket(pl, lrd, lru) || !bracket(pu, urd, uru)) return false;
-    const double lo = lrd;  // lower endpoint rounds down (outward)
-    const double hi = uru;  // upper endpoint rounds up (outward)
+    // Inf-sup form; an empty endpoint is unbounded, so "[,]" is entire and
+    // "[1,]" is [1, +inf]. Each present endpoint rounds outward.
+    const std::string_view lo_tok = trim(inner.substr(0, comma));
+    const std::string_view hi_tok = trim(inner.substr(comma + 1));
+    double lo = -detail::kInf, hi = detail::kInf;
+    if (!lo_tok.empty()) {
+      double rd, ru;
+      if (!bracket(parse_real(lo_tok), rd, ru)) return false;
+      lo = rd;  // lower endpoint rounds down (outward)
+    }
+    if (!hi_tok.empty()) {
+      double rd, ru;
+      if (!bracket(parse_real(hi_tok), rd, ru)) return false;
+      hi = ru;  // upper endpoint rounds up (outward)
+    }
     if (!valid_bounds(lo, hi)) return false;
     out = make(lo, hi);
     return true;
   }
 
-  // Bare literal: a rigorously rounded point interval.
+  // Bare literal: an uncertain form "m?..." or a rigorously rounded point.
+  if (t.find('?') != std::string_view::npos) {
+    double lo, hi;
+    if (!parse_uncertain(t, lo, hi) || !valid_bounds(lo, hi)) return false;
+    out = make(lo, hi);
+    return true;
+  }
   const ParsedReal p = parse_real(t);
   double rd, ru;
   if (!bracket(p, rd, ru)) return false;

@@ -11,6 +11,7 @@ add_executable(pyintval_cpp_tests
     test_elementary.cpp
     test_decoration.cpp
     test_rigor_regression.cpp
+    test_tightness.cpp
     ${PYINTVAL_COREMATH_SOURCES})
 target_include_directories(pyintval_cpp_tests PRIVATE
     ${PROJECT_SOURCE_DIR}/include

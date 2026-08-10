@@ -4,6 +4,41 @@ All notable changes to pyintval are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Tightness regression tests** for composed interval expressions
+  (`tests/{python,cpp}/test_tightness.py|cpp`): a fractions-based reference
+  computes the tightest correctly-rounded result of a fixed evaluation form and
+  asserts pyintval matches it bit-for-bit, over the dependency problem
+  (`x*(1-x)` vs `x - x*x`), evaluation-order (Horner vs naive), Rump's example,
+  and the wrapping effect.
+- **IEEE 1788-2015 conformance testing via the ITF1788 reference suite**
+  (`tests/itf1788/`): a plugin plus runner that generate and run the ~7,200-case
+  corpus against pyintval and gate on the enclosure (rigor) standard. pyintval
+  encloses the tightest result on 99.5% of tests exercising an implemented
+  operation. See `tests/itf1788/README.md` for the documented remaining gaps.
+- **Decorated overloads for the non-arithmetic operations**: `intersection`,
+  `hull`, `cancel_minus`, `cancel_plus`, and the reverse operations `mul_rev`,
+  `sqr_rev`, `abs_rev` now accept `DecoratedInterval` arguments (result carries
+  the trivial `trv` decoration, and NaI propagates), as IEEE 1788 requires.
+- **Expanded text parsing** toward the IEEE 1788 literal grammar: the uncertain
+  form (`Interval("3.56?1")`, `"-10?u"`, `"3.56?1e2"`), half-bounded and
+  empty-bound inf-sup literals (`"[1,]"`, `"[,2]"`, `"[,]"`), and native
+  decorated literals (`DecoratedInterval("[1,2]_com")`, case-insensitive, with
+  `"[nai]"` and over-claiming or unknown decorations resolving to NaI). Rational
+  endpoints (`"[2/3, 1]"`) are not yet supported.
+
+### Fixed
+
+- **`pow(x, y)` at a base touching zero.** The two-argument power previously
+  returned `[empty]` for a base interval containing 0 (it evaluated
+  `exp(y·log x)` with `log 0 = -inf`). It now implements the IEEE 1788 corner
+  semantics — `0^{y>0}=0`, `0^0` undefined only for a base of exactly `{0}`,
+  limit values at the `x=0` boundary otherwise — so such results are correct
+  rigorous enclosures. Found by the ITF1788 conformance suite.
+
 ## [0.1.0] — 2026-08-10
 
 First public release.

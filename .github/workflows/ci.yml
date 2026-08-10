@@ -77,3 +77,19 @@ jobs:
         run: cmake --build build --config Release
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
+
+  # IEEE 1788-2015 conformance via the ITF1788 reference suite. Results are
+  # platform-independent (correctly-rounded, deterministic), so one runner
+  # suffices. Gates on the ENCLOSURE/rigor standard against a documented
+  # baseline; see tests/itf1788/README.md.
+  itf1788:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install pyintval and the generator's dependencies
+        run: pip install --verbose . PLY PyYAML
+      - name: Run ITF1788 conformance
+        run: python tests/itf1788/run_conformance.py

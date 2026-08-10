@@ -106,3 +106,30 @@ TEST_CASE("composition propagates the weakest decoration") {
   CHECK(add(nai(), D(1, 2)).dec == Decoration::ill);
   CHECK(mul(D(1, 2), nai()).dec == Decoration::ill);
 }
+
+TEST_CASE("set / cancel / reverse ops: decorated overloads carry trv, propagate NaI (F3)") {
+  const DecoratedInterval a = decorate(make(1.0, 3.0), Decoration::com);
+  const DecoratedInterval b = decorate(make(2.1, 4.0), Decoration::com);
+  // Not point functions: the interval part is the bare op, the decoration is trv.
+  CHECK(equal(intersection(a, b).x, intersection(a.x, b.x)));
+  CHECK(intersection(a, b).dec == Decoration::trv);
+  CHECK(convex_hull(a, b).dec == Decoration::trv);
+  CHECK(cancel_minus(decorate(make(-1.0, 3.0), Decoration::com),
+                     decorate(make(0.0, 1.0), Decoration::com))
+            .dec == Decoration::trv);
+  CHECK(cancel_plus(a, b).dec == Decoration::trv);
+  const DecoratedInterval sr = sqr_rev(decorate(make(0.0, 25.0), Decoration::def));
+  CHECK(sr.dec == Decoration::trv);
+  CHECK(equal(sr.x, make(-5.0, 5.0)));
+  CHECK(mul_rev(a, b).dec == Decoration::trv);
+  CHECK(abs_rev(decorate(make(-1.0, 2.0), Decoration::com)).dec == Decoration::trv);
+  // Three-argument (binary) reverse forms.
+  CHECK(mul_rev(a, b, decorate(make(0.0, 1.0), Decoration::com)).dec == Decoration::trv);
+  CHECK(sqr_rev(decorate(make(0.0, 25.0), Decoration::def),
+                decorate(make(0.0, 10.0), Decoration::com))
+            .dec == Decoration::trv);
+  // NaI poisons every one of them.
+  CHECK(intersection(nai(), a).dec == Decoration::ill);
+  CHECK(mul_rev(nai(), b).dec == Decoration::ill);
+  CHECK(cancel_minus(a, nai()).dec == Decoration::ill);
+}
