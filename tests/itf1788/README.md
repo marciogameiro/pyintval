@@ -32,8 +32,8 @@ Current status (pinned corpus, 7,236 tests):
 
 | Standard | Pass | |
 |---|---|---|
-| **Enclosure (rigor)** | **6,873 / 7,236 (95%)** | 99.5% of the tests that exercise an *implemented* operation |
-| Tightest | 5,387 / 7,236 (74%) | the ~1,500 gap is transcendentals, ~1 ulp wider than tightest **by design** |
+| **Enclosure (rigor)** | **7,056 / 7,236 (98%)** | 99.5% of the tests that exercise an *implemented* operation |
+| Tightest | 5,570 / 7,236 (77%) | the ~1,500 gap is transcendentals, ~1 ulp wider than tightest **by design** |
 
 pyintval builds its transcendentals on CORE-MATH's correctly-rounded kernels and
 **deliberately widens them one ulp per endpoint** for safety, so it is not — and
@@ -44,7 +44,7 @@ enclosure, which is what matters and what the gate enforces.
 
 `run_conformance.py` fails only on a **new** rigor deviation — an under-enclosure
 or a run error not already recorded in [`known_deviations.txt`](known_deviations.txt).
-That baseline (363 entries) captures the documented, deferred gaps below. After
+That baseline (180 entries) captures the documented, deferred gaps below. After
 closing one, prune the baseline:
 
 ```bash
@@ -54,18 +54,23 @@ python tests/itf1788/run_conformance.py --update-baseline
 ## Known gaps (deferred, tracked as follow-ups)
 
 The suite surfaced four real gaps beyond the by-design transcendental widening
-(F1). All are baselined; none is a soundness bug in an implemented operation.
+(F1); **F2 and F3 are now fixed**, F4 and F5 remain (baselined). None is a
+soundness bug in an implemented operation.
 
 | ID | Gap | ~Count | Baseline bucket |
 |---|---|---|---|
-| **F3** | Decorated `cancel_minus/plus`, `mul_rev/sqr_rev/abs_rev`, `intersection/hull` are bare-`Interval`-only (the kernel has no `DecoratedInterval` overloads). | ~200 | `*_dec_*` run errors |
 | **F4** | `DecoratedInterval("[a,b]_com")` and some numeric/text literal forms aren't parsed by pyintval's decorated text constructor. | ~130 | `text_to_*`, `nums_to_*`, `IEEE1788_c/e` |
 | **F5** | Decoration edge cases on discontinuous functions (`ceil/floor/trunc/round`) and NaI comparison semantics. | ~35 | `*_dec_test` under-enclosures |
 
 **F2 (fixed):** `pow(x, y)` with a base touching 0 previously returned `[empty]`
 via `exp(y·log 0)`; it now implements the IEEE 1788 corner semantics
-(`elementary.hpp`), so those ~180 cases enclose. Regression tests:
-`tests/cpp/test_elementary.cpp`, `tests/python/test_regressions.py`.
+(`elementary.hpp`), so those ~180 cases enclose.
+
+**F3 (fixed):** `intersection`, `hull`, `cancel_minus/plus`, and the reverse ops
+`mul_rev/sqr_rev/abs_rev` now have `DecoratedInterval` overloads (result `trv`,
+NaI propagating; `decoration.hpp` + bindings), clearing ~180 run errors.
+Regression tests for both live in `tests/cpp/test_{elementary,decoration}.cpp`
+and `tests/python/test_{regressions,decoration}.py`.
 
 ## How the plugin works
 

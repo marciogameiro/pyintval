@@ -19,6 +19,10 @@ All notable changes to pyintval are documented here. The format is based on
   corpus against pyintval and gate on the enclosure (rigor) standard. pyintval
   encloses the tightest result on 99.5% of tests exercising an implemented
   operation. See `tests/itf1788/README.md` for the documented remaining gaps.
+- **Decorated overloads for the non-arithmetic operations**: `intersection`,
+  `hull`, `cancel_minus`, `cancel_plus`, and the reverse operations `mul_rev`,
+  `sqr_rev`, `abs_rev` now accept `DecoratedInterval` arguments (result carries
+  the trivial `trv` decoration, and NaI propagates), as IEEE 1788 requires.
 
 ### Fixed
 

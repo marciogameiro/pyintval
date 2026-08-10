@@ -285,9 +285,18 @@ an unbounded interval (or the empty set) rather than raising.
          [](const Interval& a, const Interval& b) { return pyintval::intersection(a, b); });
   iv.def("__or__",
          [](const Interval& a, const Interval& b) { return pyintval::convex_hull(a, b); });
-  iv.def("intersection", &pyintval::intersection, py::arg("other"));
-  iv.def("hull", &pyintval::convex_hull, py::arg("other"),
-         "Interval hull of the union of self and other.");
+  iv.def(
+      "intersection",
+      [](const Interval& self, const Interval& other) {
+        return pyintval::intersection(self, other);
+      },
+      py::arg("other"));
+  iv.def(
+      "hull",
+      [](const Interval& self, const Interval& other) {
+        return pyintval::convex_hull(self, other);
+      },
+      py::arg("other"), "Interval hull of the union of self and other.");
 
   // --- Comparisons and predicates ------------------------------------------
   iv.def("__eq__", [](const Interval& a, py::handle o) -> py::object {
@@ -397,10 +406,21 @@ an unbounded interval (or the empty set) rather than raising.
   PYINTVAL_FN1("sign", sign);
   PYINTVAL_FN2("min", min, "x", "y");
   PYINTVAL_FN2("max", max, "x", "y");
-  m.def("hull", &pyintval::convex_hull, py::arg("x"), py::arg("y"));
-  m.def("intersection", &pyintval::intersection, py::arg("x"), py::arg("y"));
-  m.def("cancel_minus", &pyintval::cancel_minus, py::arg("a"), py::arg("b"));
-  m.def("cancel_plus", &pyintval::cancel_plus, py::arg("a"), py::arg("b"));
+  m.def(
+      "hull", [](const Interval& x, const Interval& y) { return pyintval::convex_hull(x, y); },
+      py::arg("x"), py::arg("y"));
+  m.def(
+      "intersection",
+      [](const Interval& x, const Interval& y) { return pyintval::intersection(x, y); },
+      py::arg("x"), py::arg("y"));
+  m.def(
+      "cancel_minus",
+      [](const Interval& a, const Interval& b) { return pyintval::cancel_minus(a, b); },
+      py::arg("a"), py::arg("b"));
+  m.def(
+      "cancel_plus",
+      [](const Interval& a, const Interval& b) { return pyintval::cancel_plus(a, b); },
+      py::arg("a"), py::arg("b"));
   m.def(
       "mul_rev", [](const Interval& b, const Interval& c) { return pyintval::mul_rev(b, c); },
       py::arg("b"), py::arg("c"), "{x : b*x meets c} as an interval hull.");
@@ -418,6 +438,37 @@ an unbounded interval (or the empty set) rather than raising.
   m.def(
       "abs_rev", [](const Interval& c, const Interval& x) { return pyintval::abs_rev(c, x); },
       py::arg("c"), py::arg("x"));
+
+  // Decorated overloads of the set / cancellative / reverse operations (result
+  // decoration is always trv; NaI propagates). Registered after the bare ones so
+  // pybind dispatches by operand type.
+  using DI = DecoratedInterval;
+  m.def(
+      "hull", [](const DI& x, const DI& y) { return pyintval::convex_hull(x, y); }, py::arg("x"),
+      py::arg("y"));
+  m.def(
+      "intersection", [](const DI& x, const DI& y) { return pyintval::intersection(x, y); },
+      py::arg("x"), py::arg("y"));
+  m.def(
+      "cancel_minus", [](const DI& a, const DI& b) { return pyintval::cancel_minus(a, b); },
+      py::arg("a"), py::arg("b"));
+  m.def(
+      "cancel_plus", [](const DI& a, const DI& b) { return pyintval::cancel_plus(a, b); },
+      py::arg("a"), py::arg("b"));
+  m.def(
+      "mul_rev", [](const DI& b, const DI& c) { return pyintval::mul_rev(b, c); }, py::arg("b"),
+      py::arg("c"));
+  m.def(
+      "mul_rev", [](const DI& b, const DI& c, const DI& x) { return pyintval::mul_rev(b, c, x); },
+      py::arg("b"), py::arg("c"), py::arg("x"));
+  m.def("sqr_rev", [](const DI& c) { return pyintval::sqr_rev(c); }, py::arg("c"));
+  m.def(
+      "sqr_rev", [](const DI& c, const DI& x) { return pyintval::sqr_rev(c, x); }, py::arg("c"),
+      py::arg("x"));
+  m.def("abs_rev", [](const DI& c) { return pyintval::abs_rev(c); }, py::arg("c"));
+  m.def(
+      "abs_rev", [](const DI& c, const DI& x) { return pyintval::abs_rev(c, x); }, py::arg("c"),
+      py::arg("x"));
 
   // --- Elementary (transcendental) functions -------------------------------
   // Each returns a rigorous enclosure of the true image over its input, built

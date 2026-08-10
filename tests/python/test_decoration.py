@@ -97,3 +97,23 @@ def test_repr_str_pickle():
     assert str(a).endswith("_com")
     assert pickle.loads(pickle.dumps(a)) == a
     assert eval(repr(a), {"DecoratedInterval": DI, "Interval": iv.Interval}) == a
+
+
+def test_decorated_set_cancel_reverse_ops():
+    # F3: set operations, cancellative subtraction, and reverse ops accept
+    # decorated intervals; the result is the bare op decorated trv, and NaI
+    # propagates.
+    I = iv.Interval
+    fp = DI.from_parts
+    a, b = fp(I(1, 3), "com"), fp(I(2.1, 4), "com")
+    assert iv.intersection(a, b) == fp(I(2.1, 3), "trv")
+    assert iv.hull(a, b) == fp(I(1, 4), "trv")
+    assert iv.cancel_plus(fp(I(-1, 3), "com"), fp(I(0, 1), "com")).decoration == "trv"
+    assert iv.sqr_rev(fp(I(0, 25), "def")) == fp(I(-5, 5), "trv")
+    assert iv.mul_rev(a, b).decoration == "trv"
+    assert iv.abs_rev(fp(I(-1, 2), "com")).decoration == "trv"
+    # NaI poisons the result.
+    assert iv.intersection(DI.nai(), a).is_nai
+    assert iv.mul_rev(DI.nai(), b).is_nai
+    # Bare Interval overloads still work unchanged.
+    assert iv.intersection(I(1, 3), I(2, 4)) == I(2, 3)

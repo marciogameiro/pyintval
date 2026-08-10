@@ -342,4 +342,43 @@ inline DecoratedInterval pow(const DecoratedInterval& a, const DecoratedInterval
   return detail::finish(y, local, a.dec, b.dec);
 }
 
+// --- Set operations, cancellative subtraction, reverse operations -----------
+//
+// These are not point functions, so IEEE 1788 (§11.11) gives their result the
+// trivial decoration trv regardless of the inputs' local behaviour. Passing trv
+// as the local decoration through finish() also propagates NaI: an ill input
+// (decoration 0) is the minimum, so it poisons the result exactly as required.
+
+inline DecoratedInterval intersection(const DecoratedInterval& a, const DecoratedInterval& b) {
+  return detail::finish(intersection(a.x, b.x), Decoration::trv, a.dec, b.dec);
+}
+inline DecoratedInterval convex_hull(const DecoratedInterval& a, const DecoratedInterval& b) {
+  return detail::finish(convex_hull(a.x, b.x), Decoration::trv, a.dec, b.dec);
+}
+inline DecoratedInterval cancel_minus(const DecoratedInterval& a, const DecoratedInterval& b) {
+  return detail::finish(cancel_minus(a.x, b.x), Decoration::trv, a.dec, b.dec);
+}
+inline DecoratedInterval cancel_plus(const DecoratedInterval& a, const DecoratedInterval& b) {
+  return detail::finish(cancel_plus(a.x, b.x), Decoration::trv, a.dec, b.dec);
+}
+inline DecoratedInterval mul_rev(const DecoratedInterval& b, const DecoratedInterval& c) {
+  return detail::finish(mul_rev(b.x, c.x), Decoration::trv, b.dec, c.dec);
+}
+inline DecoratedInterval mul_rev(const DecoratedInterval& b, const DecoratedInterval& c,
+                                 const DecoratedInterval& x) {
+  return detail::finish(mul_rev(b.x, c.x, x.x), Decoration::trv, b.dec, c.dec, x.dec);
+}
+inline DecoratedInterval sqr_rev(const DecoratedInterval& c) {
+  return detail::finish(sqr_rev(c.x), Decoration::trv, c.dec);
+}
+inline DecoratedInterval sqr_rev(const DecoratedInterval& c, const DecoratedInterval& x) {
+  return detail::finish(sqr_rev(c.x, x.x), Decoration::trv, c.dec, x.dec);
+}
+inline DecoratedInterval abs_rev(const DecoratedInterval& c) {
+  return detail::finish(abs_rev(c.x), Decoration::trv, c.dec);
+}
+inline DecoratedInterval abs_rev(const DecoratedInterval& c, const DecoratedInterval& x) {
+  return detail::finish(abs_rev(c.x, x.x), Decoration::trv, c.dec, x.dec);
+}
+
 }  // namespace pyintval
