@@ -40,17 +40,17 @@ jobs:
           - { os: macos-15-intel, archs: x86_64 }
           - { os: windows-latest, archs: AMD64 }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # clang-cl needs the MSVC headers/libs/Windows SDK on INCLUDE/LIB/PATH;
       # these persist into the cibuildwheel build subprocess.
       - name: Activate MSVC toolchain (Windows)
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.21.3
+        uses: pypa/cibuildwheel@v4.2.0
         env:
           CIBW_ARCHS: ${{ matrix.archs }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: wheels-${{ matrix.os }}-${{ matrix.archs }}
           path: ./wheelhouse/*.whl
@@ -59,14 +59,14 @@ jobs:
     name: Source distribution
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build sdist
         run: pipx run build --sdist
       - name: Verify the sdist builds and imports
         run: |
           python -m pip install dist/*.tar.gz
           python -c "import pyintval as iv; print(iv.exp(iv.Interval(0, 1)))"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: sdist
           path: ./dist/*.tar.gz
@@ -80,7 +80,7 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with: { path: dist, merge-multiple: true }
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
@@ -98,6 +98,6 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with: { path: dist, merge-multiple: true }
       - uses: pypa/gh-action-pypi-publish@release/v1
