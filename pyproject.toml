@@ -77,10 +77,6 @@ manylinux-aarch64-image = "manylinux_2_28"
 # verified on the actual target, not just reasoned about.
 test-extras = ["test"]
 test-command = "pytest {project}/tests/python"
-# The macOS x86_64 wheel is cross-compiled on the arm64 runner and cannot be
-# run there; its x86_64 code paths are identical to (and fully exercised by) the
-# Linux x86_64 wheel's test run, so skip testing it here.
-test-skip = "*-macosx_x86_64"
 
 [tool.cibuildwheel.windows]
 # CORE-MATH needs Clang/GCC features MSVC lacks; build with clang-cl + Ninja.

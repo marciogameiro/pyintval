@@ -32,9 +32,12 @@ jobs:
         include:
           - { os: ubuntu-latest, archs: x86_64 }
           - { os: ubuntu-24.04-arm, archs: aarch64 }
-          # macos-latest is arm64; it also cross-compiles the x86_64 wheel with
-          # clang (GitHub retired the Intel macos-13 runner).
-          - { os: macos-latest, archs: "arm64 x86_64" }
+          - { os: macos-latest, archs: arm64 }
+          # Native Intel runner for the x86_64 macOS wheel (built and tested).
+          # macos-15-intel is a GitHub sunset runner; when it is retired, switch
+          # back to cross-compiling on macos-latest (archs: "arm64 x86_64" plus
+          # test-skip = "*-macosx_x86_64" in pyproject).
+          - { os: macos-15-intel, archs: x86_64 }
           - { os: windows-latest, archs: AMD64 }
     steps:
       - uses: actions/checkout@v4
