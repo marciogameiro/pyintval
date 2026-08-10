@@ -117,3 +117,21 @@ def test_decorated_set_cancel_reverse_ops():
     assert iv.mul_rev(DI.nai(), b).is_nai
     # Bare Interval overloads still work unchanged.
     assert iv.intersection(I(1, 3), I(2, 4)) == I(2, 3)
+
+
+def test_decorated_text_literals():
+    # F4: native "[a,b]_dec" parsing; no suffix -> the tightest decoration; the
+    # uncertain form works decorated too.
+    assert DI("[1,1e3]_com") == DI.from_parts(iv.Interval(1, 1000), "com")
+    assert DI("[1,1E3]_COM").decoration == "com"  # case-insensitive suffix
+    assert DI("[entire]").decoration == "dac"
+    assert DI("3.56?1e2") == DI.from_parts(iv.Interval(355, 357), "com")
+    # Invalid decoration -> NaI (over-claim, unknown, or 'ill'); "[nai]" -> NaI.
+    assert DI("[nai]").is_nai
+    assert DI("[empty]_com").is_nai
+    assert DI("[,]_com").is_nai
+    assert DI("[1,2]_ill").is_nai
+    assert DI("[1,2]_fooo").is_nai
+    # Genuinely malformed still raises.
+    with pytest.raises(ValueError):
+        DI("garbage")

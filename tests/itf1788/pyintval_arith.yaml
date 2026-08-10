@@ -33,17 +33,35 @@ preamble: |
     def _isnai(x):
         return x.is_nai if isinstance(x, DecoratedInterval) else False
 
-    # pyintval's DecoratedInterval string constructor does not accept the IEEE
-    # 1788 "[a,b]_dec" decorated-literal syntax (only bare Interval text works),
-    # so split off the decoration suffix and build via from_parts. See the
-    # coverage notes in tests/itf1788/README.md.
+    # IEEE 1788 textToInterval recovers from an invalid literal to empty (bare)
+    # or NaI (decorated); pyintval's constructors instead raise on a genuinely
+    # malformed string, so translate that here. Both the inf-sup/uncertain forms
+    # and the "[a,b]_dec" decorated syntax are parsed natively by pyintval.
+    def _btext(s):
+        try:
+            return Interval(s)
+        except ValueError:
+            return Interval.empty()
+
     def _dtext(s):
-        s = s.strip()
-        if len(s) > 4 and s[-4] == "_" and s[-3:].lower() in ("com", "dac", "def", "trv", "ill"):
-            return DecoratedInterval.from_parts(Interval(s[:-4]), s[-3:].lower())
-        if s.strip("[] ").lower() == "nai":
+        try:
+            return DecoratedInterval(s)
+        except ValueError:
             return DecoratedInterval.nai()
-        return DecoratedInterval(s)
+
+    # numsToInterval(a, b): invalid bounds (a > b, NaN, or an infinite point)
+    # recover to empty/NaI the same way.
+    def _bnums(a, b):
+        try:
+            return Interval(a, b)
+        except ValueError:
+            return Interval.empty()
+
+    def _dnums(a, b):
+        try:
+            return DecoratedInterval(a, b)
+        except ValueError:
+            return DecoratedInterval.nai()
 
 # --- interval literals ----------------------------------------------------- #
 empty_interval_double: Interval.empty()
@@ -67,9 +85,9 @@ decorator_less_equals: ($ARG1 <= $ARG2)
 decorator_greater_equals: ($ARG1 >= $ARG2)
 
 # --- constructors ---------------------------------------------------------- #
-op_b-numsToInterval*: Interval($ARG1, $ARG2)
-op_b-textToInterval*: Interval($ARG1)
-op_d-numsToInterval*: DecoratedInterval($ARG1, $ARG2)
+op_b-numsToInterval*: _bnums($ARG1, $ARG2)
+op_b-textToInterval*: _btext($ARG1)
+op_d-numsToInterval*: _dnums($ARG1, $ARG2)
 op_d-textToInterval*: _dtext($ARG1)
 op_setDec*: DecoratedInterval.from_parts($ARG1, $ARG2)
 op_newDec*: DecoratedInterval($ARG1)

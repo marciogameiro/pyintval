@@ -40,6 +40,23 @@ def test_from_string_bracket_forms():
     assert iv.Interval("[3, inf]").hi == math.inf
 
 
+def test_from_string_uncertain_form():
+    # IEEE 1788 "d?ruE" uncertain notation (F4).
+    assert iv.Interval("-10?").endpoints == (-10.5, -9.5)  # half-ulp default radius
+    assert iv.Interval("-10?u").endpoints == (-10.0, -9.5)  # one-sided up
+    assert iv.Interval("-10?12").endpoints == (-22.0, 2.0)  # radius of 12 ulps
+    assert iv.Interval("3.56?1e2").endpoints == (355.0, 357.0)  # trailing exponent
+    assert iv.Interval("0.0?u").lo == 0.0
+    x = iv.Interval("3.56?1")  # [3.55, 3.57], outward-rounded
+    assert x.lo <= 3.55 and 3.57 <= x.hi
+
+
+def test_from_string_half_bounded():
+    assert iv.Interval("[,]").is_entire
+    assert iv.Interval("[1,]").endpoints == (1.0, math.inf)
+    assert iv.Interval("[,2]").endpoints == (-math.inf, 2.0)
+
+
 def test_empty_and_entire_constructors():
     assert iv.Interval.empty().is_empty
     assert iv.Interval.entire().is_entire

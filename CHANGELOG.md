@@ -23,6 +23,12 @@ All notable changes to pyintval are documented here. The format is based on
   `hull`, `cancel_minus`, `cancel_plus`, and the reverse operations `mul_rev`,
   `sqr_rev`, `abs_rev` now accept `DecoratedInterval` arguments (result carries
   the trivial `trv` decoration, and NaI propagates), as IEEE 1788 requires.
+- **Expanded text parsing** toward the IEEE 1788 literal grammar: the uncertain
+  form (`Interval("3.56?1")`, `"-10?u"`, `"3.56?1e2"`), half-bounded and
+  empty-bound inf-sup literals (`"[1,]"`, `"[,2]"`, `"[,]"`), and native
+  decorated literals (`DecoratedInterval("[1,2]_com")`, case-insensitive, with
+  `"[nai]"` and over-claiming or unknown decorations resolving to NaI). Rational
+  endpoints (`"[2/3, 1]"`) are not yet supported.
 
 ### Fixed
 

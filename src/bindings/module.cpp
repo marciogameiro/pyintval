@@ -172,6 +172,79 @@ DecoratedInterval dec_pow_int(const DecoratedInterval& a, long n) {
   return pyintval::pown(a, static_cast<int>(n));
 }
 
+// Parse a decoration name (already lower-cased) without throwing.
+bool try_decoration(const std::string& d, Decoration& out) {
+  if (d == "com")
+    out = Decoration::com;
+  else if (d == "dac")
+    out = Decoration::dac;
+  else if (d == "def")
+    out = Decoration::def;
+  else if (d == "trv")
+    out = Decoration::trv;
+  else if (d == "ill")
+    out = Decoration::ill;
+  else
+    return false;
+  return true;
+}
+
+// IEEE 1788 decorated text literal. With no "_dec" suffix the interval gets its
+// tightest decoration; an explicit suffix is validated -- it may not over-claim
+// (com needs a common interval, def/dac a nonempty one), and 'ill'/unknown
+// decorations are rejected. "[nai]" (with or without a suffix) is NaI. Any of
+// these invalid-decoration cases yields NaI, per the standard's
+// textToDecoratedInterval; only an unparseable interval part raises, matching
+// the bare Interval constructor.
+DecoratedInterval dec_from_text(const std::string& s) {
+  namespace td = pyintval::textdetail;
+  const std::string t(td::trim(s));
+  std::string body = t, decstr;
+  const size_t us = t.rfind('_');
+  if (us != std::string::npos && us + 1 < t.size()) {
+    bool alpha = true;
+    for (size_t k = us + 1; k < t.size(); ++k) {
+      const char c = t[k];
+      if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))) {
+        alpha = false;
+        break;
+      }
+    }
+    if (alpha) {
+      body.assign(td::trim(std::string_view(t).substr(0, us)));
+      decstr = t.substr(us + 1);
+      for (char& c : decstr)
+        if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+    }
+  }
+  // NaI literal ("[nai]" / "[ Nai ]"); any decoration suffix still yields NaI.
+  std::string_view inner = td::trim(body);
+  if (inner.size() >= 2 && inner.front() == '[' && inner.back() == ']') {
+    inner = td::trim(inner.substr(1, inner.size() - 2));
+  }
+  if (td::iequal(inner, "nai")) return pyintval::nai();
+
+  Interval x;
+  if (!pyintval::text_to_interval(body, x)) {
+    throw py::value_error("malformed decorated interval literal: '" + s + "'");
+  }
+  if (decstr.empty()) return pyintval::decorate(x);  // tightest decoration
+  Decoration dec;
+  if (!try_decoration(decstr, dec) || dec == Decoration::ill) return pyintval::nai();
+  if (dec == Decoration::com && !pyintval::is_common(x)) return pyintval::nai();
+  if ((dec == Decoration::dac || dec == Decoration::def) && pyintval::is_empty(x)) {
+    return pyintval::nai();
+  }
+  return pyintval::decorate(x, dec);
+}
+
+DecoratedInterval dec_from_object(py::handle a, py::handle b) {
+  if (b.is_none() && py::isinstance<py::str>(a)) {
+    return dec_from_text(py::cast<std::string>(a));
+  }
+  return pyintval::decorate(from_object(a, b));
+}
+
 }  // namespace
 
 PYBIND11_MODULE(_core, m) {
@@ -524,8 +597,8 @@ machine-checked certificate that the whole composed expression is defined and
 continuous on its input box.
 )doc");
 
-  di.def(py::init([](py::object a, py::object b) { return pyintval::decorate(from_object(a, b)); }),
-         py::arg("lo"), py::arg("hi") = py::none());
+  di.def(py::init([](py::object a, py::object b) { return dec_from_object(a, b); }), py::arg("lo"),
+         py::arg("hi") = py::none());
   di.def_static(
       "from_parts",
       [](const Interval& x, const std::string& d) {
