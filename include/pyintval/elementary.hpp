@@ -320,18 +320,60 @@ inline Interval atan2(const Interval& y, const Interval& x) noexcept {
   return make(detail::lb(lo), detail::ub(hi));
 }
 
-// pow(x, y) = x^y. A point integer exponent reduces to pown (which handles
-// zero and negative bases exactly). Otherwise a real power requires a
-// nonnegative base, so the domain is restricted to x >= 0 and the value is the
-// rigorous composition exp(y * log(x)).
+namespace detail {
+// (lo, hi) enclosure of the scalar power x^y (x >= 0) for pow's corner method,
+// kept as plain doubles because make() canonicalizes an [inf, inf] "interval" to
+// empty -- so an infinite corner value must not pass through Interval. IEEE 1788
+// boundary conventions:
+//   x^0 = 1 (including the limit at x = 0),  1^y = 1,
+//   0^{y>0} = 0,  0^{y<0} = +inf (limit),  inf^{y>0} = inf,  inf^{y<0} = 0,
+//   x^{+inf} = 0 or inf as x < 1 or x > 1,  x^{-inf} the mirror image.
+// The genuinely undefined 0^0 (base of exactly {0}) is handled by pow, not here:
+// this returns the limit value 1, correct whenever the base spans some x > 0,
+// which is the only situation in which pow calls it.
+struct PowBounds {
+  double lo, hi;
+};
+inline PowBounds pow_corner(double x, double y) noexcept {
+  if (y == 0.0 || x == 1.0) return {1.0, 1.0};
+  if (x == 0.0) return (y > 0.0) ? PowBounds{0.0, 0.0} : PowBounds{kInf, kInf};
+  if (x == kInf) return (y > 0.0) ? PowBounds{kInf, kInf} : PowBounds{0.0, 0.0};
+  if (y == kInf) return (x < 1.0) ? PowBounds{0.0, 0.0} : PowBounds{kInf, kInf};
+  if (y == -kInf) return (x < 1.0) ? PowBounds{kInf, kInf} : PowBounds{0.0, 0.0};
+  const Interval v = exp(mul(point(y), log(point(x))));  // x>0 finite !=1, y finite !=0
+  return {v.lo, v.hi};
+}
+}  // namespace detail
+
+// pow(x, y) = x^y, the IEEE 1788 two-argument power (defined for base x >= 0).
+// A nonzero point integer exponent reduces to pown, which pyintval extends to
+// zero and negative bases exactly. For every other exponent the base is first
+// restricted to x >= 0; the value is then the hull of the four corner powers,
+// because x^y is coordinatewise monotone on the box [p,q] x [c,d] (its only
+// interior critical point, the saddle at (1, 0), is never an extremum), so the
+// range endpoints are attained at corners. The boundary at x = 0 contributes
+// limit values, except that for a base of exactly {0} the point 0^0 is
+// undefined and 0^{y<=0} is excluded.
 inline Interval pow(const Interval& x, const Interval& y) noexcept {
   if (is_empty(x) || is_empty(y)) return empty();
-  if (y.lo == y.hi && std::floor(y.lo) == y.lo && std::fabs(y.lo) <= 1.0e9) {
+  // Nonzero integer point exponent: exact via pown (negative bases included).
+  // Exponent 0 is excluded here -- pown gives 0^0 = 1, whereas IEEE 1788 pow
+  // leaves 0^0 undefined -- and is handled by the general path below.
+  if (y.lo == y.hi && y.lo != 0.0 && std::floor(y.lo) == y.lo && std::fabs(y.lo) <= 1.0e9) {
     return pown(x, static_cast<int>(y.lo));
   }
-  const Interval xp = intersection(x, make(0.0, detail::kInf));
-  if (is_empty(xp)) return empty();  // negative base with non-integer exponent: undefined
-  return exp(mul(y, log(xp)));
+  const Interval base = intersection(x, make(0.0, detail::kInf));  // domain x >= 0
+  if (is_empty(base)) return empty();                              // base entirely negative
+  const double p = base.lo, q = base.hi;                           // 0 <= p <= q
+  if (q == 0.0)                                                    // base is exactly {0}
+    return (y.hi > 0.0) ? make(0.0, 0.0) : empty();                // 0^{>0} = 0, else undefined
+  const detail::PowBounds k1 = detail::pow_corner(p, y.lo);
+  const detail::PowBounds k2 = detail::pow_corner(p, y.hi);
+  const detail::PowBounds k3 = detail::pow_corner(q, y.lo);
+  const detail::PowBounds k4 = detail::pow_corner(q, y.hi);
+  const double lo = std::min(std::min(k1.lo, k2.lo), std::min(k3.lo, k4.lo));
+  const double hi = std::max(std::max(k1.hi, k2.hi), std::max(k3.hi, k4.hi));
+  return make(lo, hi);
 }
 
 }  // namespace pyintval
