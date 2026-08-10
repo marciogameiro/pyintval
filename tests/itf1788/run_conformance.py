@@ -56,6 +56,7 @@ BASELINE = os.path.join(HERE, "known_deviations.txt")
 # IEEE 1788 decoration order (strongest -> weakest). A rigorous result may carry
 # a weaker (lower) decoration than the tightest, but never a stronger one.
 _RANK = {"com": 4, "dac": 3, "def": 2, "trv": 1, "ill": 0}
+_IV_TYPES = (Interval, DecoratedInterval)
 
 
 def _bare(x):
@@ -64,9 +65,7 @@ def _bare(x):
 
 def encloses(computed, expected) -> bool:
     """Does `computed` rigorously enclose the IEEE tightest `expected`?"""
-    if isinstance(computed, (Interval, DecoratedInterval)) and isinstance(
-        expected, (Interval, DecoratedInterval)
-    ):
+    if isinstance(computed, _IV_TYPES) and isinstance(expected, _IV_TYPES):
         ok = _bare(expected).subset(_bare(computed))
         if isinstance(computed, DecoratedInterval) or isinstance(expected, DecoratedInterval):
             cd = computed.decoration if isinstance(computed, DecoratedInterval) else "com"
