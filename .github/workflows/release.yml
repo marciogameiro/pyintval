@@ -32,9 +32,9 @@ jobs:
         include:
           - { os: ubuntu-latest, archs: x86_64 }
           - { os: ubuntu-24.04-arm, archs: aarch64 }
-          # macos-14 is arm64; it also cross-compiles the x86_64 wheel with
+          # macos-latest is arm64; it also cross-compiles the x86_64 wheel with
           # clang (GitHub retired the Intel macos-13 runner).
-          - { os: macos-14, archs: "arm64 x86_64" }
+          - { os: macos-latest, archs: "arm64 x86_64" }
           - { os: windows-latest, archs: AMD64 }
     steps:
       - uses: actions/checkout@v4
