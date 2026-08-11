@@ -4,6 +4,16 @@ All notable changes to pyintval are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/), and the project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Decorations of the step functions** `floor`/`ceil`/`trunc`/`round`/`sign`
+  are now capped at `dac` and never `com`, matching IEEE 1788: even on a common
+  input with a locally-constant (singleton) result, a step function is
+  discontinuous in every neighborhood, so the previous `com` over-claimed
+  continuity. Found by the ITF1788 conformance suite.
+
 ## [0.2.0] — 2026-08-10
 
 ### Added

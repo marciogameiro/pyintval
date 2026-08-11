@@ -56,9 +56,9 @@ def test_domain_violations_give_trv():
 
 
 def test_step_functions_and_branch_cut():
-    assert iv.floor(DI(0.2, 0.8)).decoration == "com"
+    assert iv.floor(DI(0.2, 0.8)).decoration == "dac"  # step funcs cap at dac
     assert iv.floor(DI(0.5, 1.5)).decoration == "def"
-    assert iv.sign(DI(1, 2)).decoration == "com"
+    assert iv.sign(DI(1, 2)).decoration == "dac"
     assert iv.sign(DI(-1, 1)).decoration == "def"
     assert iv.atan2(DI(-1, 1), DI(-2, -1)).decoration == "def"  # branch cut
 
@@ -135,3 +135,13 @@ def test_decorated_text_literals():
     # Genuinely malformed still raises.
     with pytest.raises(ValueError):
         DI("garbage")
+
+
+def test_step_function_decorations():
+    # F5: step functions cap at dac (never com) where locally constant, and drop
+    # to def when the result spans a jump.
+    assert iv.floor(DI(0.2, 0.8)).decoration == "dac"
+    assert iv.ceil(DI(0.2, 0.8)).decoration == "dac"
+    assert iv.trunc(DI(-0.5, 0.5)).decoration == "dac"
+    assert iv.sign(DI(1.0, 2.0)).decoration == "dac"
+    assert iv.floor(DI(0.5, 1.5)).decoration == "def"  # crosses an integer

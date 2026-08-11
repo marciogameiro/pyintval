@@ -71,13 +71,16 @@ TEST_CASE("tan asymptotes drop to trv") {
   CHECK(tan(D(0.0, 4.0)).dec == Decoration::trv);  // spans a full period
 }
 
-TEST_CASE("step functions are def unless locally constant") {
-  CHECK(floor(D(0.2, 0.8)).dec == Decoration::com);  // constant on the cell
+TEST_CASE("step functions are dac when locally constant, def when they jump") {
+  // A step function is at most dac -- never com -- even on a common input and a
+  // locally-constant (singleton) result, since it is discontinuous in every
+  // neighborhood (IEEE 1788). It drops to def once the result spans a jump.
+  CHECK(floor(D(0.2, 0.8)).dec == Decoration::dac);  // constant on the cell -> dac
   CHECK(floor(D(0.5, 1.5)).dec == Decoration::def);  // crosses an integer
-  CHECK(ceil(D(0.2, 0.8)).dec == Decoration::com);
-  CHECK(trunc(D(-0.5, 0.5)).dec == Decoration::com);  // trunc == 0 on (-1,1): continuous
+  CHECK(ceil(D(0.2, 0.8)).dec == Decoration::dac);
+  CHECK(trunc(D(-0.5, 0.5)).dec == Decoration::dac);  // trunc == 0 on (-1,1)
   CHECK(trunc(D(0.5, 1.5)).dec == Decoration::def);   // crosses the jump at 1
-  CHECK(sign(D(1.0, 2.0)).dec == Decoration::com);
+  CHECK(sign(D(1.0, 2.0)).dec == Decoration::dac);
   CHECK(sign(D(-1.0, 1.0)).dec == Decoration::def);
 }
 

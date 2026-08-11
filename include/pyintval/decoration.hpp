@@ -172,38 +172,41 @@ inline DecoratedInterval pown(const DecoratedInterval& a, int n) {
 // --- Discontinuous but everywhere-defined step functions --------------------
 
 namespace detail {
-// def, or dac/com when the step function is locally constant (hence continuous)
-// on the input -- detected by the bare result collapsing to a single value.
-inline Decoration step_local(const Interval& x, const Interval& y) noexcept {
+// A step function (floor/ceil/trunc/round/sign) is locally constant -- hence
+// continuous -- exactly when its bare result collapses to a single value, giving
+// dac; otherwise it jumped across a discontinuity, giving def. It is never com:
+// even on a common input a step function is discontinuous in every neighborhood,
+// so IEEE 1788 caps its local decoration at dac.
+inline Decoration step_local(const Interval& y) noexcept {
   if (is_empty(y)) return Decoration::trv;
-  if (is_singleton(y)) return is_common(x) ? Decoration::com : Decoration::dac;
+  if (is_singleton(y)) return Decoration::dac;
   return Decoration::def;
 }
 }  // namespace detail
 
 inline DecoratedInterval floor(const DecoratedInterval& a) {
   const Interval y = floor(a.x);
-  return detail::finish(y, detail::step_local(a.x, y), a.dec);
+  return detail::finish(y, detail::step_local(y), a.dec);
 }
 inline DecoratedInterval ceil(const DecoratedInterval& a) {
   const Interval y = ceil(a.x);
-  return detail::finish(y, detail::step_local(a.x, y), a.dec);
+  return detail::finish(y, detail::step_local(y), a.dec);
 }
 inline DecoratedInterval trunc(const DecoratedInterval& a) {
   const Interval y = trunc(a.x);
-  return detail::finish(y, detail::step_local(a.x, y), a.dec);
+  return detail::finish(y, detail::step_local(y), a.dec);
 }
 inline DecoratedInterval round_ties_to_even(const DecoratedInterval& a) {
   const Interval y = round_ties_to_even(a.x);
-  return detail::finish(y, detail::step_local(a.x, y), a.dec);
+  return detail::finish(y, detail::step_local(y), a.dec);
 }
 inline DecoratedInterval round_ties_to_away(const DecoratedInterval& a) {
   const Interval y = round_ties_to_away(a.x);
-  return detail::finish(y, detail::step_local(a.x, y), a.dec);
+  return detail::finish(y, detail::step_local(y), a.dec);
 }
 inline DecoratedInterval sign(const DecoratedInterval& a) {
   const Interval y = sign(a.x);
-  return detail::finish(y, detail::step_local(a.x, y), a.dec);
+  return detail::finish(y, detail::step_local(y), a.dec);
 }
 
 // --- Domain-restricted elementary functions ---------------------------------
