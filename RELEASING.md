@@ -44,16 +44,32 @@ optionally `testpypi`). These match the `environment:` names in the release
 workflow and are where you can add protection rules (e.g. require a reviewer
 before publishing).
 
-### 4. Enable Read the Docs (optional)
+### 4. Enable Read the Docs
 
-Import the repo on <https://readthedocs.org>; it reads `.readthedocs.yaml`,
-builds the extension with GCC, and publishes the Sphinx docs. Then point the
-docs badge/URL in `README.md` and `pyproject.toml` at your RTD site.
+Import the repo on <https://readthedocs.org>; it reads `.readthedocs.yaml`, which
+**builds the package from source** with GCC (so `autodoc` documents the exact
+code of the branch or tag being built — no dependency on the published wheel and
+no release-time race) and publishes the Sphinx docs.
+
+Then configure the project so releases publish on their own:
+
+- **Versions** tab → activate the **`stable`** version. It auto-tracks the
+  newest SemVer tag and re-points itself whenever a newer tag is built.
+- **⚙ Admin → Settings → Default version** → **`stable`**, so the docs home page
+  shows the newest *release* (`latest` keeps tracking `main` for dev docs).
+- **⚙ Admin → Automation Rules → Add rule:** match *SemVer versions*, version
+  type **Tag**, action **Activate version** — so every new `vX.Y.Z` tag is
+  activated and built automatically.
+
+The docs badge/URL in `README.md` already point at the RTD site.
 
 ## Cutting a release
 
-1. Bump the version in `pyproject.toml` (e.g. `0.1.0.dev0` → `0.1.0`).
-2. Commit: `git commit -am "Release 0.1.0"`.
+1. Bump the version in `pyproject.toml`, and move the `## [Unreleased]` section
+   of `CHANGELOG.md` to the new version (add the date and a release link). If the
+   `Development Status` classifier is still `3 - Alpha`, consider bumping it to
+   `4 - Beta`.
+2. Commit: `git commit -am "Release X.Y.Z"`.
 3. (Optional) Dry-run to TestPyPI: from the Actions tab, run the **Release**
    workflow manually (`workflow_dispatch`) with `publish_target = testpypi`,
    then `pip install -i https://test.pypi.org/simple/ pyintval` in a fresh venv.
@@ -66,6 +82,11 @@ docs badge/URL in `README.md` and `pyproject.toml` at your RTD site.
    Windows AMD64 via clang-cl, plus the sdist), tests every wheel against the
    suite, and publishes to PyPI.
 5. Create a GitHub Release from the tag with notes (optional but recommended).
+
+Documentation updates itself: the tag push makes Read the Docs build that version
+from source and re-point `stable` (the default version) to it, so the docs home
+page shows the new release with no manual step. Merging to `main` separately
+rebuilds `latest` (the dev docs). See *One-time setup → Enable Read the Docs*.
 
 ## Notes
 
