@@ -411,14 +411,23 @@ inline bool parse_uncertain(std::string_view s, double& lo, double& hi) {
   }
   if (!any) return false;
 
+  // Radius: a run of digits, or a second '?' meaning an infinite radius. A digit
+  // run too large to represent also saturates to an infinite radius.
   size_t j = 0;
   long long rad = 0;
-  bool have_rad = false;
-  while (j < rest.size() && rest[j] >= '0' && rest[j] <= '9') {
-    if (rad > kGuard) return false;
-    rad = rad * 10 + (rest[j] - '0');
-    have_rad = true;
+  bool have_rad = false, inf_radius = false;
+  if (j < rest.size() && rest[j] == '?') {
+    inf_radius = true;
     ++j;
+  } else {
+    while (j < rest.size() && rest[j] >= '0' && rest[j] <= '9') {
+      if (rad > kGuard)
+        inf_radius = true;  // too many digits: saturate
+      else
+        rad = rad * 10 + (rest[j] - '0');
+      have_rad = true;
+      ++j;
+    }
   }
   char dir = 0;
   if (j < rest.size() && (rest[j] == 'u' || rest[j] == 'd' || rest[j] == 'U' || rest[j] == 'D')) {
@@ -444,12 +453,31 @@ inline bool parse_uncertain(std::string_view s, double& lo, double& hi) {
   }
   if (j != rest.size()) return false;  // trailing garbage
 
-  // A half-ulp default radius is handled by scaling the whole thing by 10 so the
+  const int mexp = -frac + exp;  // decimal exponent of the midpoint
+
+  // Infinite radius: the whole line, or a half-line anchored at the (outward-
+  // rounded) midpoint for the one-sided u/d forms.
+  if (inf_radius) {
+    if (dir == 0) {
+      lo = -detail::kInf;
+      hi = detail::kInf;
+      return true;
+    }
+    double mrd, mru;
+    if (!bracket(parse_real(std::to_string(sign * m) + "e" + std::to_string(mexp)), mrd, mru)) {
+      return false;
+    }
+    lo = (dir == 'u') ? mrd : -detail::kInf;
+    hi = (dir == 'd') ? mru : detail::kInf;
+    return true;
+  }
+
+  // Finite radius. A half-ulp default radius is handled by scaling by 10 so the
   // radius (5) and midpoint stay integers; the unit's decimal exponent absorbs it.
   const long long scale = have_rad ? 1 : 10;
   const long long r = have_rad ? rad : 5;
   const long long mid = sign * m * scale;
-  const int unit_exp = -frac - (have_rad ? 0 : 1) + exp;
+  const int unit_exp = mexp - (have_rad ? 0 : 1);
   const long long lo_val = (dir == 'u') ? mid : mid - r;
   const long long hi_val = (dir == 'd') ? mid : mid + r;
 

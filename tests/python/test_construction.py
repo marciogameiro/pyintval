@@ -124,3 +124,11 @@ def test_hash_consistency():
     assert hash(a) == hash(b)
     d = {a: "x"}
     assert d[b] == "x"
+
+
+def test_from_string_infinite_radius():
+    # F4': double '?' means an infinite radius -- the whole line or a half-line.
+    assert iv.Interval("0.0??").is_entire
+    assert iv.Interval("2.5??u").endpoints == (2.5, math.inf)
+    assert iv.Interval("-10??d").endpoints == (-math.inf, -10.0)
+    assert iv.Interval("10?" + "9" * 320).is_entire  # radius overflow saturates

@@ -153,3 +153,13 @@ def test_pow_base_zero_decoration():
     assert iv.pow(DI(0.0, 1.0), DI(0.0, 0.0)).decoration == "trv"
     assert iv.pow(DI(0.0, 0.5), DI(-1.0, -1.0)).decoration == "trv"
     assert iv.pow(DI(1.0, 2.0), DI(0.0, 0.0)).decoration == "com"  # base > 0 -> com
+
+
+def test_decorated_overflow_clamp():
+    # F4': a finite literal that overflows to unbounded downgrades an over-claimed
+    # `com` to `dac`; an explicitly-unbounded literal (inf/entire/??) stays NaI.
+    mx = float.fromhex("0x1.fffffffffffffp+1023")
+    assert DI("[1.0E+400]_com") == DI.from_parts(iv.Interval(mx, float("inf")), "dac")
+    assert DI("10?3e380_com").decoration == "dac"
+    assert DI("0.0??_com").is_nai  # '??' is an explicit infinity
+    assert DI("[,]_com").is_nai

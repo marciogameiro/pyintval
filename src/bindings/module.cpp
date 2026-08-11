@@ -189,13 +189,39 @@ bool try_decoration(const std::string& d, Decoration& out) {
   return true;
 }
 
+// Does the interval literal explicitly denote an unbounded interval (an inf /
+// entire keyword, or an empty inf-sup endpoint), as opposed to a finite literal
+// that merely overflowed to unbounded? A stated com on the former is a
+// contradiction (NaI); on the latter it downgrades to dac.
+bool intended_unbounded(const std::string& body) {
+  namespace td = pyintval::textdetail;
+  std::string low(td::trim(body));
+  for (char& c : low)
+    if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+  // inf/entire keyword, or the uncertain form's "??" (an explicit infinite
+  // radius) -- all declare unboundedness, unlike a finite literal that overflows.
+  if (low.find("inf") != std::string::npos || low.find("entire") != std::string::npos ||
+      low.find("??") != std::string::npos) {
+    return true;
+  }
+  if (low.size() >= 2 && low.front() == '[' && low.back() == ']') {
+    const std::string_view in = td::trim(std::string_view(low).substr(1, low.size() - 2));
+    const size_t comma = in.find(',');
+    if (comma != std::string_view::npos &&
+        (td::trim(in.substr(0, comma)).empty() || td::trim(in.substr(comma + 1)).empty())) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // IEEE 1788 decorated text literal. With no "_dec" suffix the interval gets its
 // tightest decoration; an explicit suffix is validated -- it may not over-claim
 // (com needs a common interval, def/dac a nonempty one), and 'ill'/unknown
-// decorations are rejected. "[nai]" (with or without a suffix) is NaI. Any of
-// these invalid-decoration cases yields NaI, per the standard's
-// textToDecoratedInterval; only an unparseable interval part raises, matching
-// the bare Interval constructor.
+// decorations are rejected. "[nai]" (with or without a suffix) is NaI. A stated
+// com on a finite literal that overflowed to unbounded downgrades to dac; other
+// invalid-decoration cases yield NaI, per the standard's textToDecoratedInterval;
+// only an unparseable interval part raises, matching the bare Interval ctor.
 DecoratedInterval dec_from_text(const std::string& s) {
   namespace td = pyintval::textdetail;
   const std::string t(td::trim(s));
@@ -231,7 +257,12 @@ DecoratedInterval dec_from_text(const std::string& s) {
   if (decstr.empty()) return pyintval::decorate(x);  // tightest decoration
   Decoration dec;
   if (!try_decoration(decstr, dec) || dec == Decoration::ill) return pyintval::nai();
-  if (dec == Decoration::com && !pyintval::is_common(x)) return pyintval::nai();
+  if (dec == Decoration::com && !pyintval::is_common(x)) {
+    // Overflow to unbounded downgrades com to the actual decoration (dac); an
+    // empty or explicitly-unbounded literal makes com a contradiction -> NaI.
+    if (pyintval::is_empty(x) || intended_unbounded(body)) return pyintval::nai();
+    return pyintval::decorate(x);  // clamp com -> newDec
+  }
   if ((dec == Decoration::dac || dec == Decoration::def) && pyintval::is_empty(x)) {
     return pyintval::nai();
   }
