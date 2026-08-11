@@ -1,6 +1,8 @@
 # pyintval
 
 [![CI](https://github.com/marciogameiro/pyintval/actions/workflows/ci.yml/badge.svg)](https://github.com/marciogameiro/pyintval/actions/workflows/ci.yml)
+[![Docs](https://readthedocs.org/projects/pyintval/badge/?version=latest)](https://pyintval.readthedocs.io/)
+[![PyPI](https://img.shields.io/pypi/v/pyintval)](https://pypi.org/project/pyintval/)
 
 **Rigorous interval arithmetic for Python** — every operation returns an
 interval that is mathematically guaranteed to contain the true result.
@@ -65,8 +67,10 @@ kernels use features MSVC lacks); prebuilt wheels have no such requirement.
 
 ## Documentation
 
-Full documentation — guide and API reference — is built with Sphinx from
-`docs/` and hosted on Read the Docs. Build it locally with:
+📖 **[pyintval.readthedocs.io](https://pyintval.readthedocs.io/)** — the user
+guide and full API reference.
+
+Built with Sphinx from `docs/`; build it locally with:
 
 ```sh
 pip install ".[docs]"
