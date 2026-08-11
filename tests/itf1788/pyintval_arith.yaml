@@ -33,6 +33,23 @@ preamble: |
     def _isnai(x):
         return x.is_nai if isinstance(x, DecoratedInterval) else False
 
+    # Every IEEE 1788 boolean predicate is false when any operand is NaI (only
+    # isNaI itself is true). pyintval has no decorated comparisons, so guard here.
+    def _hasnai(*xs):
+        return any(_isnai(x) for x in xs)
+
+    _DECRANK = {"com": 4, "dac": 3, "def": 2, "trv": 1, "ill": 0}
+
+    # setDec clamps the requested decoration to the interval's tightest (newDec),
+    # so an over-claim such as setDec(empty, com) becomes empty_trv rather than
+    # raising (pyintval's from_parts rejects over-claims for the public API).
+    def _setdec(x, d):
+        if d == "ill":
+            return DecoratedInterval.nai()
+        tightest = DecoratedInterval(x).decoration
+        chosen = d if _DECRANK[d] <= _DECRANK[tightest] else tightest
+        return DecoratedInterval.from_parts(x, chosen)
+
     # IEEE 1788 textToInterval recovers from an invalid literal to empty (bare)
     # or NaI (decorated); pyintval's constructors instead raise on a genuinely
     # malformed string, so translate that here. Both the inf-sup/uncertain forms
@@ -89,7 +106,7 @@ op_b-numsToInterval*: _bnums($ARG1, $ARG2)
 op_b-textToInterval*: _btext($ARG1)
 op_d-numsToInterval*: _dnums($ARG1, $ARG2)
 op_d-textToInterval*: _dtext($ARG1)
-op_setDec*: DecoratedInterval.from_parts($ARG1, $ARG2)
+op_setDec*: _setdec($ARG1, $ARG2)
 op_newDec*: DecoratedInterval($ARG1)
 
 # --- cancellative addition / subtraction ----------------------------------- #
@@ -150,30 +167,30 @@ op_abs*: iv.abs($ARG1)
 op_min*: iv.min($ARG1, $ARG2)
 op_max*: iv.max($ARG1, $ARG2)
 
-# --- numeric functions of intervals (return doubles) ----------------------- #
-op_inf*: _iv($ARG1).lo
-op_sup*: _iv($ARG1).hi
-op_mid*: _iv($ARG1).mid
-op_wid*: _iv($ARG1).wid
-op_rad*: _iv($ARG1).rad
-op_mag*: _iv($ARG1).mag
-op_mig*: _iv($ARG1).mig
+# --- numeric functions of intervals (return doubles; NaN on NaI) ----------- #
+op_inf*: nan if _isnai($ARG1) else _iv($ARG1).lo
+op_sup*: nan if _isnai($ARG1) else _iv($ARG1).hi
+op_mid*: nan if _isnai($ARG1) else _iv($ARG1).mid
+op_wid*: nan if _isnai($ARG1) else _iv($ARG1).wid
+op_rad*: nan if _isnai($ARG1) else _iv($ARG1).rad
+op_mag*: nan if _isnai($ARG1) else _iv($ARG1).mag
+op_mig*: nan if _isnai($ARG1) else _iv($ARG1).mig
 
-# --- boolean functions of intervals (act on the interval part) ------------- #
-op_equal*: _iv($ARG1) == _iv($ARG2)
-op_subset*: _iv($ARG1).subset(_iv($ARG2))
-op_interior*: _iv($ARG1).is_interior_to(_iv($ARG2))
-op_disjoint*: _iv($ARG1).is_disjoint(_iv($ARG2))
-op_isEmpty*: _iv($ARG1).is_empty
-op_isEntire*: _iv($ARG1).is_entire
+# --- boolean functions of intervals (act on the interval part; false on NaI) - #
+op_equal*: not _hasnai($ARG1, $ARG2) and _iv($ARG1) == _iv($ARG2)
+op_subset*: not _hasnai($ARG1, $ARG2) and _iv($ARG1).subset(_iv($ARG2))
+op_interior*: not _hasnai($ARG1, $ARG2) and _iv($ARG1).is_interior_to(_iv($ARG2))
+op_disjoint*: not _hasnai($ARG1, $ARG2) and _iv($ARG1).is_disjoint(_iv($ARG2))
+op_isEmpty*: not _hasnai($ARG1) and _iv($ARG1).is_empty
+op_isEntire*: not _hasnai($ARG1) and _iv($ARG1).is_entire
 op_isNaI*: _isnai($ARG1)
-op_less*: _iv($ARG1).less(_iv($ARG2))
-op_strictLess*: _iv($ARG1).strict_less(_iv($ARG2))
-op_precedes*: _iv($ARG1).precedes(_iv($ARG2))
-op_strictPrecedes*: _iv($ARG1).strict_precedes(_iv($ARG2))
-op_isCommonInterval*: _iv($ARG1).is_common
-op_isSingleton*: _iv($ARG1).is_singleton
-op_isMember*: _iv($ARG2).contains($ARG1)
+op_less*: not _hasnai($ARG1, $ARG2) and _iv($ARG1).less(_iv($ARG2))
+op_strictLess*: not _hasnai($ARG1, $ARG2) and _iv($ARG1).strict_less(_iv($ARG2))
+op_precedes*: not _hasnai($ARG1, $ARG2) and _iv($ARG1).precedes(_iv($ARG2))
+op_strictPrecedes*: not _hasnai($ARG1, $ARG2) and _iv($ARG1).strict_precedes(_iv($ARG2))
+op_isCommonInterval*: not _hasnai($ARG1) and _iv($ARG1).is_common
+op_isSingleton*: not _hasnai($ARG1) and _iv($ARG1).is_singleton
+op_isMember*: not _hasnai($ARG2) and _iv($ARG2).contains($ARG1)
 
 # --- decoration accessor --------------------------------------------------- #
 op_decorationPart*: $ARG1.decoration
