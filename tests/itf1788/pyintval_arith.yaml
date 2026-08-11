@@ -38,6 +38,18 @@ preamble: |
     def _hasnai(*xs):
         return any(_isnai(x) for x in xs)
 
+    _DECRANK = {"com": 4, "dac": 3, "def": 2, "trv": 1, "ill": 0}
+
+    # setDec clamps the requested decoration to the interval's tightest (newDec),
+    # so an over-claim such as setDec(empty, com) becomes empty_trv rather than
+    # raising (pyintval's from_parts rejects over-claims for the public API).
+    def _setdec(x, d):
+        if d == "ill":
+            return DecoratedInterval.nai()
+        tightest = DecoratedInterval(x).decoration
+        chosen = d if _DECRANK[d] <= _DECRANK[tightest] else tightest
+        return DecoratedInterval.from_parts(x, chosen)
+
     # IEEE 1788 textToInterval recovers from an invalid literal to empty (bare)
     # or NaI (decorated); pyintval's constructors instead raise on a genuinely
     # malformed string, so translate that here. Both the inf-sup/uncertain forms
@@ -94,7 +106,7 @@ op_b-numsToInterval*: _bnums($ARG1, $ARG2)
 op_b-textToInterval*: _btext($ARG1)
 op_d-numsToInterval*: _dnums($ARG1, $ARG2)
 op_d-textToInterval*: _dtext($ARG1)
-op_setDec*: DecoratedInterval.from_parts($ARG1, $ARG2)
+op_setDec*: _setdec($ARG1, $ARG2)
 op_newDec*: DecoratedInterval($ARG1)
 
 # --- cancellative addition / subtraction ----------------------------------- #
@@ -155,14 +167,14 @@ op_abs*: iv.abs($ARG1)
 op_min*: iv.min($ARG1, $ARG2)
 op_max*: iv.max($ARG1, $ARG2)
 
-# --- numeric functions of intervals (return doubles) ----------------------- #
-op_inf*: _iv($ARG1).lo
-op_sup*: _iv($ARG1).hi
-op_mid*: _iv($ARG1).mid
-op_wid*: _iv($ARG1).wid
-op_rad*: _iv($ARG1).rad
-op_mag*: _iv($ARG1).mag
-op_mig*: _iv($ARG1).mig
+# --- numeric functions of intervals (return doubles; NaN on NaI) ----------- #
+op_inf*: nan if _isnai($ARG1) else _iv($ARG1).lo
+op_sup*: nan if _isnai($ARG1) else _iv($ARG1).hi
+op_mid*: nan if _isnai($ARG1) else _iv($ARG1).mid
+op_wid*: nan if _isnai($ARG1) else _iv($ARG1).wid
+op_rad*: nan if _isnai($ARG1) else _iv($ARG1).rad
+op_mag*: nan if _isnai($ARG1) else _iv($ARG1).mag
+op_mig*: nan if _isnai($ARG1) else _iv($ARG1).mig
 
 # --- boolean functions of intervals (act on the interval part; false on NaI) - #
 op_equal*: not _hasnai($ARG1, $ARG2) and _iv($ARG1) == _iv($ARG2)

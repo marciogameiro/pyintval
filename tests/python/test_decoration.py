@@ -145,3 +145,11 @@ def test_step_function_decorations():
     assert iv.trunc(DI(-0.5, 0.5)).decoration == "dac"
     assert iv.sign(DI(1.0, 2.0)).decoration == "dac"
     assert iv.floor(DI(0.5, 1.5)).decoration == "def"  # crosses an integer
+
+
+def test_pow_base_zero_decoration():
+    # F5: pow with a base touching 0 and exponent <= 0 hits an undefined point
+    # (0^0 or 0^{n<0}), so the decoration is trv -- not com.
+    assert iv.pow(DI(0.0, 1.0), DI(0.0, 0.0)).decoration == "trv"
+    assert iv.pow(DI(0.0, 0.5), DI(-1.0, -1.0)).decoration == "trv"
+    assert iv.pow(DI(1.0, 2.0), DI(0.0, 0.0)).decoration == "com"  # base > 0 -> com

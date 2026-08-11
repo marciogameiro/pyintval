@@ -13,6 +13,10 @@ All notable changes to pyintval are documented here. The format is based on
   input with a locally-constant (singleton) result, a step function is
   discontinuous in every neighborhood, so the previous `com` over-claimed
   continuity. Found by the ITF1788 conformance suite.
+- **Decoration of `pow(x, y)` at a base touching zero.** When the base contains
+  0 and the exponent reaches 0 (`0^0`) or below, the operation hits an undefined
+  point on the box, so the result decoration is now `trv` instead of an
+  over-claimed `com`/`dac`.
 
 ## [0.2.0] — 2026-08-10
 

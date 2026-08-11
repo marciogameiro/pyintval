@@ -337,8 +337,10 @@ inline DecoratedInterval pow(const DecoratedInterval& a, const DecoratedInterval
   if (is_empty(a.x) || is_empty(b.x)) {
     local = Decoration::trv;
   } else if (b.x.lo == b.x.hi && std::floor(b.x.lo) == b.x.lo && std::fabs(b.x.lo) <= 1.0e9) {
-    const bool neg_exp_at_zero = b.x.lo < 0.0 && contains_zero(a.x);
-    local = neg_exp_at_zero ? Decoration::trv : detail::cont_local({a.x}, y);
+    // A base touching 0 with exponent <= 0 hits an undefined point (0^0 or
+    // 0^{n<0}), so the operation is not defined on the whole box: only trv.
+    const bool undefined_at_zero = b.x.lo <= 0.0 && contains_zero(a.x);
+    local = undefined_at_zero ? Decoration::trv : detail::cont_local({a.x}, y);
   } else {
     local = (a.x.lo > 0.0) ? detail::cont_local({a.x, b.x}, y) : Decoration::trv;
   }
