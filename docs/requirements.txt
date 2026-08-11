@@ -1,0 +1,5 @@
+# Read the Docs installs this to build the documentation: the published pyintval
+# wheel plus its docs extra (Sphinx, Furo, MyST-parser). Using the wheel avoids
+# recompiling the C++ extension on every docs build. Pin a version here if you
+# want a tagged version's docs to use exactly that release.
+pyintval[docs]

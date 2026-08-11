@@ -9,11 +9,9 @@ sphinx:
   configuration: docs/conf.py
   fail_on_warning: false
 
-# Build and install the package (compiling the extension with the system GCC,
-# which supports the CORE-MATH kernels on Linux) so autodoc can import it.
+# Install the published pyintval wheel (plus its docs extra) from PyPI rather
+# than compiling the C++ extension on every build -- faster, and autodoc then
+# documents the released API. See docs/requirements.txt.
 python:
   install:
-    - method: pip
-      path: .
-      extra_requirements:
-        - docs
+    - requirements: docs/requirements.txt
