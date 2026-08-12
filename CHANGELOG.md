@@ -13,8 +13,13 @@ All notable changes to pyintval are documented here. The format is based on
   saturates to an unbounded interval instead of failing. A decorated literal whose
   finite value overflows to unbounded downgrades an over-claimed `com` to `dac`
   (e.g. `DecoratedInterval("[1.0E+400]_com")`), while an explicitly unbounded
-  literal stated as `com` remains NaI. Rational endpoints (`"[2/3, 1]"`) are
-  still unsupported.
+  literal stated as `com` remains NaI.
+- **Rational text endpoints.** `Interval("2/3")`, `"[-4/2, 10/5]"` and the like
+  parse `p/q` literals with correct outward rounding, decided by exact
+  big-integer comparison, so the result rigorously encloses the exact rational.
+  With this, pyintval **encloses the IEEE tightest result on all 7,236 ITF1788
+  conformance tests** (transcendentals remain intentionally ~1 ulp wider than
+  tightest).
 
 ### Fixed
 
