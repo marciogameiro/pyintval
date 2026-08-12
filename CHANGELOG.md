@@ -6,6 +6,14 @@ All notable changes to pyintval are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-08-11
+
+### Changed
+
+- **Maturity classifier is now `Development Status :: 4 - Beta`** (was Alpha):
+  the API is stable, soundness-fixed, and conformance-tested against the IEEE
+  1788 reference suite from both the Python and C++ entry points.
+
 ### Added
 
 - **More IEEE 1788 text literals.** The uncertain form now accepts an infinite
@@ -113,5 +121,6 @@ First public release.
 - Prebuilt wheels for Linux (x86-64, aarch64), macOS (arm64, x86-64), and
   Windows (AMD64) on CPython 3.10–3.14.
 
+[0.3.0]: https://github.com/marciogameiro/pyintval/releases/tag/v0.3.0
 [0.2.0]: https://github.com/marciogameiro/pyintval/releases/tag/v0.2.0
 [0.1.0]: https://github.com/marciogameiro/pyintval/releases/tag/v0.1.0

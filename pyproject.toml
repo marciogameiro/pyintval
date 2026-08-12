@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "pyintval"
-version = "0.2.0"
+version = "0.3.0"
 description = "Rigorous interval arithmetic with correctly rounded double-precision endpoints (IEEE 1788 set-based flavor)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -19,7 +19,7 @@ keywords = [
   "correct rounding",
 ]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 4 - Beta",
   "Intended Audience :: Science/Research",
   "Programming Language :: C++",
   "Programming Language :: Python :: 3",
