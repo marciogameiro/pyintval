@@ -43,7 +43,14 @@ import subprocess
 import sys
 import unittest
 
-from pyintval import DecoratedInterval, Interval
+try:
+    from pyintval import DecoratedInterval, Interval
+except ImportError:
+    # The C++ target (run_conformance_cpp.py) reuses this module's clone/shim
+    # scaffolding but compiles pyintval from headers, so the package need not be
+    # importable there. The enclosure comparator below is used only by the Python
+    # target, which does install pyintval.
+    DecoratedInterval = Interval = None
 
 ITF1788_REPO = "https://github.com/oheim/ITF1788.git"
 ITF1788_REF = "b6ee1e24d209c289f99a68ddc357839935799eae"
@@ -56,7 +63,7 @@ BASELINE = os.path.join(HERE, "known_deviations.txt")
 # IEEE 1788 decoration order (strongest -> weakest). A rigorous result may carry
 # a weaker (lower) decoration than the tightest, but never a stronger one.
 _RANK = {"com": 4, "dac": 3, "def": 2, "trv": 1, "ill": 0}
-_IV_TYPES = (Interval, DecoratedInterval)
+_IV_TYPES = (Interval, DecoratedInterval) if Interval is not None else ()
 
 
 def _bare(x):
