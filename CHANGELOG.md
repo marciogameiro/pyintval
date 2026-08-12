@@ -20,6 +20,12 @@ All notable changes to pyintval are documented here. The format is based on
   With this, pyintval **encloses the IEEE tightest result on all 7,236 ITF1788
   conformance tests** (transcendentals remain intentionally ~1 ulp wider than
   tightest).
+- **ITF1788 conformance for the C++ kernel** (`tests/itf1788/run_conformance_cpp.py`):
+  the reference corpus is now also applied to the header-only C++ API directly —
+  no Python or pybind11 in the result path — via a doctest test-framework plugin
+  (no Boost dependency) and a C++ arithmetic plugin. The kernel encloses the IEEE
+  tightest interval on all 11,069 assertions (5,370 cases) of the 12 core corpus
+  files. Runs as a CI job. See `tests/itf1788/README.md`.
 
 ### Fixed
 

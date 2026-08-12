@@ -93,3 +93,17 @@ jobs:
         run: pip install --verbose . PLY PyYAML
       - name: Run ITF1788 conformance
         run: python tests/itf1788/run_conformance.py
+
+  # Same corpus, applied to the header-only C++ kernel directly (no pybind11).
+  # Only the generator needs Python; pyintval itself is compiled from headers.
+  itf1788-cpp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install the generator's dependencies
+        run: pip install PLY PyYAML
+      - name: Run ITF1788 C++ conformance
+        run: python tests/itf1788/run_conformance_cpp.py

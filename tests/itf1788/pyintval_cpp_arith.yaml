@@ -1,0 +1,255 @@
+# ITF1788 arithmetic-library plugin: map each IEEE 1788 operation to pyintval's
+# HEADER-ONLY C++ API (the same kernel the Python extension wraps, exercised here
+# directly). Pairs with the doctest test-framework plugin (cpp_doctest_test.yaml)
+# and ITF1788's own cpp language plugin.
+#
+# Assertions gate on ENCLOSURE, not tightest: itf_eq(computed, expected) asks
+# whether `computed` contains the IEEE tightest `expected` (a decorated result
+# may under- but never over-claim its decoration). This is the soundness bar;
+# the transcendentals are ~1 ulp wider than tightest by design and still enclose.
+#
+# Numeric functions and comparisons are defined by IEEE 1788 on the interval part
+# of a decorated operand and are false / NaN on NaI; the m_* helpers below encode
+# that (the kernel's own free functions take a bare Interval).
+imports: |
+    #include <cmath>
+    #include <limits>
+    #include <string_view>
+    #include "pyintval/interval.hpp"
+    #include "pyintval/elementary.hpp"
+    #include "pyintval/decoration.hpp"
+    #include "pyintval/text.hpp"
+preamble: |
+    using namespace pyintval;
+    using DI = DecoratedInterval;
+    using DEC = Decoration;
+
+    static inline bool is_nai(const DI& d) { return d.dec == DEC::ill; }
+    static inline int drank(DEC d) { return static_cast<int>(d); }
+
+    // --- ENCLOSURE-based assertion equality (the rigor gate) ------------------
+    static inline bool itf_eq(const Interval& c, const Interval& e) { return subset(e, c); }
+    static inline bool itf_eq(const DI& c, const DI& e) {
+      if (is_nai(e)) return is_nai(c);
+      return !is_nai(c) && subset(e.x, c.x) && drank(c.dec) <= drank(e.dec);
+    }
+    static inline bool itf_eq(double c, double e) {
+      return (std::isnan(c) && std::isnan(e)) || c == e;   // scalars: exact (or both NaN)
+    }
+    static inline bool itf_eq(bool c, bool e) { return c == e; }
+    static inline bool itf_eq(DEC c, DEC e) { return c == e; }
+
+    // --- numeric functions: unwrap a decorated operand, NaN on NaI ------------
+    #define PYINTVAL_ITF_NUM(NAME, FN)                                         \
+      static inline double NAME(const Interval& x) { return FN(x); }           \
+      static inline double NAME(const DI& d) { return is_nai(d) ? NAN : FN(d.x); }
+    PYINTVAL_ITF_NUM(m_inf, inf)
+    PYINTVAL_ITF_NUM(m_sup, sup)
+    PYINTVAL_ITF_NUM(m_mid, mid)
+    PYINTVAL_ITF_NUM(m_wid, wid)
+    PYINTVAL_ITF_NUM(m_rad, rad)
+    PYINTVAL_ITF_NUM(m_mag, mag)
+    PYINTVAL_ITF_NUM(m_mig, mig)
+    #undef PYINTVAL_ITF_NUM
+
+    // --- comparisons: on the interval part; false if either operand is NaI ----
+    #define PYINTVAL_ITF_CMP(NAME, FN)                                                     \
+      static inline bool NAME(const Interval& a, const Interval& b) { return FN(a, b); }   \
+      static inline bool NAME(const DI& a, const DI& b) {                                  \
+        return !is_nai(a) && !is_nai(b) && FN(a.x, b.x);                                   \
+      }
+    PYINTVAL_ITF_CMP(m_equal, equal)
+    PYINTVAL_ITF_CMP(m_subset, subset)
+    PYINTVAL_ITF_CMP(m_interior, interior)
+    PYINTVAL_ITF_CMP(m_disjoint, disjoint)
+    PYINTVAL_ITF_CMP(m_less, less)
+    PYINTVAL_ITF_CMP(m_strict_less, strict_less)
+    PYINTVAL_ITF_CMP(m_precedes, precedes)
+    PYINTVAL_ITF_CMP(m_strict_precedes, strict_precedes)
+    #undef PYINTVAL_ITF_CMP
+
+    #define PYINTVAL_ITF_PRED(NAME, FN)                                          \
+      static inline bool NAME(const Interval& x) { return FN(x); }               \
+      static inline bool NAME(const DI& d) { return !is_nai(d) && FN(d.x); }
+    PYINTVAL_ITF_PRED(m_isEmpty, is_empty)
+    PYINTVAL_ITF_PRED(m_isEntire, is_entire)
+    PYINTVAL_ITF_PRED(m_isCommon, is_common)
+    PYINTVAL_ITF_PRED(m_isSingleton, is_singleton)
+    #undef PYINTVAL_ITF_PRED
+
+    static inline bool m_isNaI(const Interval&) { return false; }
+    static inline bool m_isNaI(const DI& d) { return is_nai(d); }
+    static inline bool m_isMember(double v, const Interval& x) { return is_member(v, x); }
+    static inline bool m_isMember(double v, const DI& d) { return !is_nai(d) && is_member(v, d.x); }
+
+    // --- unary plus, and interval / decoration parts --------------------------
+    static inline Interval pos_of(const Interval& x) { return x; }
+    static inline DI pos_of(const DI& d) { return d; }
+    static inline DEC dpart(const DI& d) { return d.dec; }
+    static inline Interval interval_part(const DI& d) { return is_nai(d) ? empty() : d.x; }
+
+    // --- constructors and decoration management -------------------------------
+    static inline Interval b_nums(double lo, double hi) { return make(lo, hi); }  // invalid -> empty (canonical)
+    static inline DI d_nums(double lo, double hi) {
+      return valid_bounds(lo, hi) ? decorate(make(lo, hi)) : nai();
+    }
+    static inline Interval b_text(const char* s) {
+      Interval x;
+      return text_to_interval(std::string_view(s), x) ? x : empty();  // invalid -> empty (recovery)
+    }
+    static inline Interval lit(double lo, double hi) { return make(lo, hi); }
+    static inline DI dlit(double lo, double hi, DEC d) {
+      return valid_bounds(lo, hi) ? decorate(make(lo, hi), d) : nai();
+    }
+    static inline DI setDec(const Interval& x, DEC req) {
+      if (req == DEC::ill) return nai();
+      DEC nd = decorate(x).dec;                                 // strongest legitimate decoration
+      return decorate(x, drank(req) <= drank(nd) ? req : nd);   // clamp an over-claim
+    }
+
+    // --- mulRevToPair: the kernel exposes only the bare pair; a reverse op is
+    //     trivially decorated (trv), with NaI propagating -------------------------
+    static inline Interval mrp_first(const Interval& b, const Interval& c) {
+      return mul_rev_to_pair(b, c).first;
+    }
+    static inline Interval mrp_second(const Interval& b, const Interval& c) {
+      return mul_rev_to_pair(b, c).second;
+    }
+    static inline DI mrp_first(const DI& b, const DI& c) {
+      return (is_nai(b) || is_nai(c)) ? nai() : decorate(mul_rev_to_pair(b.x, c.x).first, DEC::trv);
+    }
+    static inline DI mrp_second(const DI& b, const DI& c) {
+      return (is_nai(b) || is_nai(c)) ? nai() : decorate(mul_rev_to_pair(b.x, c.x).second, DEC::trv);
+    }
+
+# --- interval literals and decorations --------------------------------------
+nai_interval_double: nai()
+empty_interval_double: empty()
+entire_interval_double: entire()
+decorated_empty_interval_double: decorate(empty(), $DEC)
+decorated_entire_interval_double: decorate(entire(), $DEC)
+inf_sup_interval_double: lit($ARG1, $ARG2)
+decorated_inf_sup_interval_double: dlit($ARG1, $ARG2, $DEC)
+decorator_com: DEC::com
+decorator_dac: DEC::dac
+decorator_def: DEC::def
+decorator_trv: DEC::trv
+decorator_ill: DEC::ill
+decorator_less_equals: (drank($ARG1) <= drank($ARG2))
+decorator_greater_equals: (drank($ARG1) >= drank($ARG2))
+
+# --- basic arithmetic (kernel has bare + decorated overloads) ---------------
+op_pos*: pos_of($ARG1)
+op_neg*: neg($ARG1)
+op_add*: add($ARG1, $ARG2)
+op_sub*: sub($ARG1, $ARG2)
+op_mul*: mul($ARG1, $ARG2)
+op_div*: div($ARG1, $ARG2)
+op_recip*: recip($ARG1)
+op_sqr*: sqr($ARG1)
+op_sqrt*: sqrt($ARG1)
+op_fma*: fma($ARG1, $ARG2, $ARG3)
+op_pown*: pown($ARG1, $ARG2)
+op_pow*: pow($ARG1, $ARG2)
+
+# --- elementary functions ---------------------------------------------------
+op_exp*: exp($ARG1)
+op_exp2*: exp2($ARG1)
+op_exp10*: exp10($ARG1)
+op_expm1*: expm1($ARG1)
+op_log*: log($ARG1)
+op_log2*: log2($ARG1)
+op_log10*: log10($ARG1)
+op_logp1*: log1p($ARG1)
+op_sin*: sin($ARG1)
+op_cos*: cos($ARG1)
+op_tan*: tan($ARG1)
+op_asin*: asin($ARG1)
+op_acos*: acos($ARG1)
+op_atan*: atan($ARG1)
+op_atan2*: atan2($ARG1, $ARG2)
+op_sinh*: sinh($ARG1)
+op_cosh*: cosh($ARG1)
+op_tanh*: tanh($ARG1)
+op_asinh*: asinh($ARG1)
+op_acosh*: acosh($ARG1)
+op_atanh*: atanh($ARG1)
+op_cbrt*: cbrt($ARG1)
+op_hypot*: hypot($ARG1, $ARG2)
+
+# --- step / rounding / lattice ----------------------------------------------
+op_sign*: sign($ARG1)
+op_ceil*: ceil($ARG1)
+op_floor*: floor($ARG1)
+op_trunc*: trunc($ARG1)
+op_roundTiesToEven*: round_ties_to_even($ARG1)
+op_roundTiesToAway*: round_ties_to_away($ARG1)
+op_abs*: abs($ARG1)
+op_min*: min($ARG1, $ARG2)
+op_max*: max($ARG1, $ARG2)
+
+# --- set operations and cancellative add/sub --------------------------------
+op_intersection*: intersection($ARG1, $ARG2)
+op_convexHull*: convex_hull($ARG1, $ARG2)
+op_cancelMinus*: cancel_minus($ARG1, $ARG2)
+op_cancelPlus*: cancel_plus($ARG1, $ARG2)
+
+# --- reverse (constraint-propagation) operations pyintval implements --------
+op_mulRev*: mul_rev($ARG1, $ARG2)
+op_mulRevTen*: mul_rev($ARG1, $ARG2, $ARG3)
+op_sqrRev*: sqr_rev($ARG1)
+op_sqrRevBin*: sqr_rev($ARG1, $ARG2)
+op_absRev*: abs_rev($ARG1)
+op_absRevBin*: abs_rev($ARG1, $ARG2)
+op_mulRevToPair*: |
+    mrp_first($ARG1, $ARG2)
+    *** next output
+    mrp_second($ARG1, $ARG2)
+
+# --- numeric functions (interval part; NaN on NaI) --------------------------
+op_inf*: m_inf($ARG1)
+op_sup*: m_sup($ARG1)
+op_mid*: m_mid($ARG1)
+op_wid*: m_wid($ARG1)
+op_rad*: m_rad($ARG1)
+op_mag*: m_mag($ARG1)
+op_mig*: m_mig($ARG1)
+op_midRad*: |
+    m_mid($ARG1)
+    *** next output
+    m_rad($ARG1)
+
+# --- comparisons and boolean queries (false on NaI) -------------------------
+op_equal*: m_equal($ARG1, $ARG2)
+op_subset*: m_subset($ARG1, $ARG2)
+op_interior*: m_interior($ARG1, $ARG2)
+op_disjoint*: m_disjoint($ARG1, $ARG2)
+op_less*: m_less($ARG1, $ARG2)
+op_strictLess*: m_strict_less($ARG1, $ARG2)
+op_precedes*: m_precedes($ARG1, $ARG2)
+op_strictPrecedes*: m_strict_precedes($ARG1, $ARG2)
+op_isEmpty*: m_isEmpty($ARG1)
+op_isEntire*: m_isEntire($ARG1)
+op_isNaI*: m_isNaI($ARG1)
+op_isCommonInterval*: m_isCommon($ARG1)
+op_isSingleton*: m_isSingleton($ARG1)
+op_isMember*: m_isMember($ARG1, $ARG2)
+
+# --- constructors and decoration management ---------------------------------
+op_b-numsToInterval*: b_nums($ARG1, $ARG2)
+op_d-numsToInterval*: d_nums($ARG1, $ARG2)
+op_b-textToInterval*: b_text($ARG1)
+op_newDec*: decorate($ARG1)
+op_setDec*: setDec($ARG1, $ARG2)
+op_intervalPart*: interval_part($ARG1)
+op_decorationPart*: dpart($ARG1)
+
+# --- exceptions: pyintval is set-based and never signals, so signal clauses
+#     become no-ops (only the interval result is checked) ---------------------
+clear_exceptions: ((void)0)
+exception_no_exception: "true"
+exception_UndefinedOperation: "true"
+exception_PossiblyUndefinedOperation: "true"
+exception_InvalidOperand: "true"
+exception_IntvlPartOfNaI: "true"
+exception_IntvlOverflow: "true"

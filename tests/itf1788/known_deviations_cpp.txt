@@ -1,0 +1,5 @@
+# ITF1788 C++ target known deviations for pyintval -- generated tests that
+# do not hold under the ENCLOSURE (rigor) standard (a failing doctest CHECK,
+# keyed <file>:<line>). Empty: the C++ kernel encloses on the entire core
+# corpus. Regenerate with:
+#   python tests/itf1788/run_conformance_cpp.py --update-baseline

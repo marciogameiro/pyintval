@@ -1,0 +1,32 @@
+# ITF1788 test-framework plugin: render the generated C++ conformance tests with
+# doctest (header-only, already vendored in third_party/), so the C++ target
+# needs no Boost dependency. Assertions gate on ENCLOSURE (see the arith plugin's
+# itf_eq): the computed interval must contain the IEEE tightest result.
+imports: |
+    #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+    #include "doctest/doctest.h"
+testfile_seq: |
+    $COMMENTS
+    $LANGUAGE_IMPORTS
+    $TESTLIB_IMPORTS
+    $ARITHLIB_IMPORTS
+    $PREAMBLE
+    $TESTCASES
+testcase_seq: |
+    $COMMENTS
+    TEST_SUITE("$TC_NAME") {
+    $TESTS
+    }
+test_seq: |
+    $COMMENTS
+    TEST_CASE("test_$COUNT") {
+    $ASSERTS
+    }
+test_signal_seq: |
+    $COMMENTS
+    TEST_CASE("test_$COUNT") {
+    $ASSERTS
+    }
+assert_equals: CHECK(itf_eq($ARG1, $ARG2))
+assert_equals_warning: CHECK(itf_eq($ARG1, $ARG2))
+assert_true: CHECK($ARG1)
