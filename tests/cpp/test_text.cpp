@@ -198,6 +198,13 @@ TEST_CASE("uncertain form d?ruE (F4)") {
   const Interval x = parse("3.56?1");  // [3.55, 3.57]
   CHECK((x.lo <= 3.55 && 3.57 <= x.hi));
   CHECK(is_member(3.56, x));
+  // Infinite radius (double '?'): the whole line, or a half-line at the midpoint.
+  CHECK(is_entire(parse("0.0??")));
+  CHECK(bit_equal(parse("2.5??u"), make(2.5, detail::kInf)));
+  CHECK(bit_equal(parse("-10??d"), make(-detail::kInf, -10.0)));
+  // A radius with too many digits to represent saturates to an infinite radius.
+  const std::string huge = "10?" + std::string(320, '9');
+  CHECK(is_entire(parse(huge.c_str())));
 }
 
 TEST_CASE("half-bounded and empty inf-sup literals (F4)") {

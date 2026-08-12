@@ -6,6 +6,16 @@ All notable changes to pyintval are documented here. The format is based on
 
 ## [Unreleased]
 
+### Added
+
+- **More IEEE 1788 text literals.** The uncertain form now accepts an infinite
+  radius (`Interval("0.0??")`, `"2.5??u"`), and an overflowing radius or exponent
+  saturates to an unbounded interval instead of failing. A decorated literal whose
+  finite value overflows to unbounded downgrades an over-claimed `com` to `dac`
+  (e.g. `DecoratedInterval("[1.0E+400]_com")`), while an explicitly unbounded
+  literal stated as `com` remains NaI. Rational endpoints (`"[2/3, 1]"`) are
+  still unsupported.
+
 ### Fixed
 
 - **Decorations of the step functions** `floor`/`ceil`/`trunc`/`round`/`sign`
