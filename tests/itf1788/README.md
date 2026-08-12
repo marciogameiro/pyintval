@@ -18,6 +18,16 @@ The runner clones ITF1788 at a pinned commit into `build/itf1788/`, generates th
 `(python, unittest, pyintval)` tests, runs them, and gates. It needs network
 access on the first run only (to clone). Exit code is 0 on success.
 
+There is also a **C++ target** that applies the same corpus to the header-only
+kernel directly (no Python, no pybind11), for the layer C++ callers reuse:
+
+```bash
+pip install PLY PyYAML                        # only the generator needs Python
+python tests/itf1788/run_conformance_cpp.py    # generate C++ tests, compile, run, gate
+```
+
+See [The C++ target](#the-c-target) below.
+
 ## What it checks — two standards
 
 Every generated test compares pyintval's result to the IEEE *tightest* interval.
@@ -71,6 +81,35 @@ deliberately widens one ulp per endpoint (F1) — they still enclose. Regression
 tests live in `tests/cpp/test_{elementary,decoration,text}.cpp` and
 `tests/python/test_{regressions,decoration,construction}.py`.
 
+## The C++ target
+
+`run_conformance_cpp.py` runs the same reference corpus against the **header-only
+C++ API** (`include/pyintval/*.hpp` + the vendored CORE-MATH kernels) — the exact
+layer the Python extension wraps and that C++ callers (e.g. CMGDB) reuse — with
+no Python or pybind11 in the result path. It generates the `(cpp, doctest,
+pyintval)` configuration, builds CORE-MATH once into a static archive, then
+compiles, links, and runs each generated file, gating on the same **enclosure**
+standard (`itf_eq` in the arith plugin asks whether the computed interval
+contains the tightest result).
+
+- **Result:** the C++ kernel encloses the IEEE tightest interval on **11,069 /
+  11,069 assertions (5,370 cases) across the 12 core corpus files**; the baseline
+  ([`known_deviations_cpp.txt`](known_deviations_cpp.txt)) is empty.
+- **Framework:** [doctest](https://github.com/doctest/doctest), already vendored
+  in `third_party/` — the C++ target needs **no Boost** (ITF1788 ships a
+  Boost.Test plugin; we supply a doctest one, `cpp_doctest_test.yaml`, instead).
+- **Excluded (7 files):** the four exercising operations pyintval does not
+  implement — Allen `overlap`; `dot`/`sum` reductions; the reverse trigonometric
+  ops (`sinRev`/`cosRev`/…); `powRev` — and the three vendor-extension files
+  (c-xsc, fi_lib, mpfi) using reciprocal trig (`sec`/`csc`/`cot`/…) and `rootn`.
+  These lie outside the IEEE 1788 operation set pyintval provides; the Python
+  runner covers the same core corpus (plus the extension files' standard ops).
+
+The plugin (`pyintval_cpp_arith.yaml`) maps each IEEE op to the C++ free
+functions; a small preamble adds the enclosure comparator and unwraps decorated
+operands for the numeric/comparison ops (which IEEE 1788 defines on the interval
+part, NaN/false on NaI), exactly as the Python plugin does.
+
 ## How the plugin works
 
 `pyintval_arith.yaml` is the ITF1788 *arithmetic-library plugin*: it maps each
@@ -92,5 +131,7 @@ ITF1788 is Apache-2.0 (© 2014 Nehmeier & Kiesner; plugins © 2015 Heimlich). It
 pinned at commit `b6ee1e2` and used as an unmodified dev-time tool — only cloned,
 never vendored — with two in-place compatibility shims applied by the runner
 (`time.clock` → `time.perf_counter`, `yaml.load` → `yaml.safe_load`) so the 2018
-codebase runs on Python 3.11 / PyYAML 6. Only `pyintval_arith.yaml`,
-`run_conformance.py`, and `known_deviations.txt` live in this repo.
+codebase runs on Python 3.11 / PyYAML 6. Only the plugins and runners live in
+this repo: `pyintval_arith.yaml` + `run_conformance.py` + `known_deviations.txt`
+(Python target) and `pyintval_cpp_arith.yaml` + `cpp_doctest_test.yaml` +
+`run_conformance_cpp.py` + `known_deviations_cpp.txt` (C++ target).
