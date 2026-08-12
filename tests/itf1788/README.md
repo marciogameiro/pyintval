@@ -32,8 +32,8 @@ Current status (pinned corpus, 7,236 tests):
 
 | Standard | Pass | |
 |---|---|---|
-| **Enclosure (rigor)** | **7,168 / 7,236 (99%)** | only 68 deviations remain (see below); just 6 are run errors |
-| Tightest | 5,684 / 7,236 (79%) | the ~1,500 gap is transcendentals, ~1 ulp wider than tightest **by design** |
+| **Enclosure (rigor)** | **7,236 / 7,236 (100%)** | every result encloses the IEEE tightest interval |
+| Tightest | 5,748 / 7,236 (79%) | the ~1,500 gap is transcendentals, ~1 ulp wider than tightest **by design** |
 
 pyintval builds its transcendentals on CORE-MATH's correctly-rounded kernels and
 **deliberately widens them one ulp per endpoint** for safety, so it is not — and
@@ -51,32 +51,24 @@ closing one, prune the baseline:
 python tests/itf1788/run_conformance.py --update-baseline
 ```
 
-## Known gaps (deferred, tracked as follow-ups)
+## Conformance gaps — all resolved
 
-The suite surfaced four real gaps beyond the by-design transcendental widening
-(F1); **F2, F3, and most of F4 are now fixed**, leaving F5 and a small F4
-remainder baselined. None is a soundness bug in an implemented operation.
+The suite surfaced five real gaps beyond the by-design transcendental widening
+(F1). **All are now fixed**, and the deviations baseline
+([`known_deviations.txt`](known_deviations.txt)) is empty — every test encloses
+the IEEE tightest result.
 
-| ID | Gap | ~Count | Baseline bucket |
-|---|---|---|---|
-| **F4′** | Remaining text literals: rational endpoints (`[2/3, 1]`) and a few edge forms not yet parsed. | ~22 | `text_to_*` |
-| **F5** | Decoration edge cases on discontinuous functions (`ceil/floor/trunc/round`), NaI comparison semantics, and a few decorated-op decorations. | ~46 | `*_dec_test` under-enclosures |
+| ID | Gap (now fixed) | Where |
+|---|---|---|
+| **F2** | `pow(x, y)` at a base touching 0 returned `[empty]`; now the IEEE corner semantics | `elementary.hpp` |
+| **F3** | decorated `intersection`/`hull`/`cancel_*`/`*_rev` were bare-only; added overloads | `decoration.hpp` + bindings |
+| **F4** | uncertain / half-bounded / `??` / decorated `[a,b]_dec` literals; overflow saturation & clamping | `text.hpp` + bindings |
+| **F4′** | rational endpoints (`[2/3, 1]`), via exact big-integer comparison | `text.hpp` |
+| **F5** | step-function and `pow`-at-0 decorations; NaI comparison / `setDec` / `inf`-of-NaI semantics | `decoration.hpp` + plugin |
 
-**F2 (fixed):** `pow(x, y)` with a base touching 0 previously returned `[empty]`
-via `exp(y·log 0)`; it now implements the IEEE 1788 corner semantics
-(`elementary.hpp`), so those ~180 cases enclose.
-
-**F3 (fixed):** `intersection`, `hull`, `cancel_minus/plus`, and the reverse ops
-`mul_rev/sqr_rev/abs_rev` now have `DecoratedInterval` overloads (result `trv`,
-NaI propagating; `decoration.hpp` + bindings), clearing ~180 run errors.
-
-**F4 (mostly fixed):** the uncertain form (`3.56?1`), half-bounded/empty inf-sup
-literals (`[1,]`, `[,]`), and native decorated `[a,b]_dec` parsing (with `[nai]`
-and over-claiming/unknown decorations resolving to NaI) are implemented in
-`text.hpp` and the bindings; the plugin now uses native parsing plus IEEE
-`textToInterval`'s invalid → empty/NaI recovery. Only rational endpoints and a
-few edge literals (F4′) remain. Regression tests for F2–F4 live in
-`tests/cpp/test_{elementary,decoration,text}.cpp` and
+The only remaining non-*tightest* results are the transcendentals, which pyintval
+deliberately widens one ulp per endpoint (F1) — they still enclose. Regression
+tests live in `tests/cpp/test_{elementary,decoration,text}.cpp` and
 `tests/python/test_{regressions,decoration,construction}.py`.
 
 ## How the plugin works

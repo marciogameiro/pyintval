@@ -105,6 +105,28 @@ struct BigU {
     }
     return 0;
   }
+  // Schoolbook product a * b (used by the exact rational comparison).
+  static BigU mul(const BigU& a, const BigU& b) {
+    if (a.is_zero() || b.is_zero()) return BigU{};
+    BigU r;
+    r.limb.assign(a.limb.size() + b.limb.size(), 0u);
+    for (size_t i = 0; i < a.limb.size(); ++i) {
+      uint64_t carry = 0;
+      const uint64_t ai = a.limb[i];
+      for (size_t j = 0; j < b.limb.size(); ++j) {
+        const uint64_t cur = ai * b.limb[j] + r.limb[i + j] + carry;
+        r.limb[i + j] = static_cast<uint32_t>(cur);
+        carry = cur >> 32;
+      }
+      for (size_t k = i + b.limb.size(); carry; ++k) {
+        const uint64_t cur = static_cast<uint64_t>(r.limb[k]) + carry;
+        r.limb[k] = static_cast<uint32_t>(cur);
+        carry = cur >> 32;
+      }
+    }
+    r.trim();
+    return r;
+  }
 };
 
 // Multiply x by 5^k in chunks (5^13 = 1220703125 < 2^31 fits a uint32).
@@ -126,11 +148,14 @@ struct ParsedReal {
   bool ok = false;
   int sign = 1;
   bool is_inf = false;
-  bool is_zero = false;  // exact zero significand
-  BigU sig;
+  bool is_zero = false;      // exact zero significand
+  bool is_rational = false;  // value = sign * sig / den (integers); p2/p5 unused
+  BigU sig;                  // significand, or the numerator when is_rational
+  BigU den;                  // denominator when is_rational
   int p2 = 0;
   int p5 = 0;
-  std::string mag_token;  // unsigned magnitude, a valid C literal for strtod
+  std::string mag_token;  // unsigned magnitude (numerator, if rational), for strtod
+  std::string den_token;  // denominator string, for the rational strtod guess
 };
 
 // Locale-independent strtod on a NUL-terminated unsigned magnitude token.
@@ -188,6 +213,31 @@ inline ParsedReal parse_real(std::string_view s) {
     return pr;
   }
   if (iequal(body, "nan")) return pr;  // NaN is never a valid endpoint
+
+  // Rational literal "digits/digits" (integers; the leading sign was stripped).
+  const size_t slash = body.find('/');
+  if (slash != std::string_view::npos) {
+    const std::string_view ns = body.substr(0, slash);
+    const std::string_view ds = body.substr(slash + 1);
+    if (ns.empty() || ds.empty()) return pr;
+    for (const char c : ns) {
+      if (c < '0' || c > '9') return pr;
+      pr.sig.mul_add(10, static_cast<uint32_t>(c - '0'));
+    }
+    for (const char c : ds) {
+      if (c < '0' || c > '9') return pr;
+      pr.den.mul_add(10, static_cast<uint32_t>(c - '0'));
+    }
+    pr.sig.trim();
+    pr.den.trim();
+    if (pr.den.is_zero()) return pr;  // division by zero: invalid
+    pr.is_rational = true;
+    pr.is_zero = pr.sig.is_zero();  // 0 / den = 0
+    pr.mag_token.assign(ns);
+    pr.den_token.assign(ds);
+    pr.ok = true;
+    return pr;
+  }
 
   pr.mag_token.assign(body);
 
@@ -317,14 +367,69 @@ inline int compare_mag(const BigU& sig, int p2, int p5, double v) {
   return BigU::cmp(L, R);
 }
 
-// Directed bracket [rd, ru] of the exact value denoted by pr, with rd rounded
-// toward -inf and ru toward +inf. Returns false if pr is not ok.
-inline bool bracket(const ParsedReal& pr, double& rd, double& ru) {
+// Exact sign of (num/den - v) for v > 0 finite and num, den > 0, decided with big
+// integers: num/den vs v = mv * 2^ev  <=>  num vs den * mv * 2^ev.
+inline int compare_rational(const BigU& num, const BigU& den, double v) {
+  if (v == detail::kInf) return -1;
+  int ev = 0;
+  const double f = std::frexp(v, &ev);
+  const uint64_t mv = static_cast<uint64_t>(std::ldexp(f, 53));  // exact integer
+  ev -= 53;                                                      // v = mv * 2^ev
+  BigU lhs = num;
+  BigU rhs = BigU::mul(den, BigU::from_u64(mv));
+  if (ev >= 0) {
+    rhs.shl_bits(static_cast<unsigned>(ev));
+  } else {
+    lhs.shl_bits(static_cast<unsigned>(-ev));
+  }
+  return BigU::cmp(lhs, rhs);
+}
+
+// Correctly directed bracket [lo, hi] of a positive real, given a round-to-
+// nearest `guess` and an exact sign functor cmp(cand) = sign(true - cand).
+// Overflow (guess == +inf) and underflow (guess == 0) pin to [max, inf] and
+// [0, denorm_min]; otherwise nextafter-step to the enclosing doubles.
+template <class Cmp>
+inline void round_positive(double guess, Cmp cmp, double& lo, double& hi) {
   using detail::kDenormMin;
   using detail::kInf;
   using detail::kMaxDouble;
   using detail::pred;
   using detail::succ;
+  if (guess == kInf) {
+    lo = kMaxDouble;
+    hi = kInf;
+    return;
+  }
+  if (guess == 0.0) {
+    lo = 0.0;
+    hi = kDenormMin;
+    return;
+  }
+  const int c = cmp(guess);
+  if (c == 0) {
+    lo = hi = guess;
+  } else if (c > 0) {  // true value > guess
+    lo = guess;
+    hi = succ(guess);
+    while (cmp(hi) > 0) {  // defensive: strtod landed a couple ulps low
+      lo = hi;
+      hi = succ(hi);
+    }
+  } else {  // true value < guess
+    hi = guess;
+    lo = pred(guess);
+    while (lo > 0.0 && cmp(lo) < 0) {  // defensive
+      hi = lo;
+      lo = pred(lo);
+    }
+  }
+}
+
+// Directed bracket [rd, ru] of the exact value denoted by pr, with rd rounded
+// toward -inf and ru toward +inf. Returns false if pr is not ok.
+inline bool bracket(const ParsedReal& pr, double& rd, double& ru) {
+  using detail::kInf;
   if (!pr.ok) return false;
   if (pr.is_inf) {
     rd = ru = pr.sign < 0 ? -kInf : kInf;
@@ -335,33 +440,15 @@ inline bool bracket(const ParsedReal& pr, double& rd, double& ru) {
     return true;
   }
   char* end = nullptr;
-  const double guess = c_strtod(pr.mag_token.c_str(), &end);  // magnitude, >= 0
-  double lo, hi;                                              // bracket of the positive magnitude
-  if (guess == kInf) {                                        // overflow: value magnitude > DBL_MAX
-    lo = kMaxDouble;
-    hi = kInf;
-  } else if (guess == 0.0) {  // underflow: 0 < magnitude <= denorm_min/2
-    lo = 0.0;
-    hi = kDenormMin;
+  double lo, hi;  // bracket of the positive magnitude
+  if (pr.is_rational) {
+    const double guess =
+        c_strtod(pr.mag_token.c_str(), &end) / c_strtod(pr.den_token.c_str(), &end);
+    if (guess != guess) return false;  // both parts overflowed: unsupported
+    round_positive(guess, [&](double v) { return compare_rational(pr.sig, pr.den, v); }, lo, hi);
   } else {
-    const int c = compare_mag(pr.sig, pr.p2, pr.p5, guess);
-    if (c == 0) {
-      lo = hi = guess;
-    } else if (c > 0) {  // magnitude > guess
-      lo = guess;
-      hi = succ(guess);
-      while (compare_mag(pr.sig, pr.p2, pr.p5, hi) > 0) {  // defensive
-        lo = hi;
-        hi = succ(hi);
-      }
-    } else {  // magnitude < guess
-      hi = guess;
-      lo = pred(guess);
-      while (lo > 0.0 && compare_mag(pr.sig, pr.p2, pr.p5, lo) < 0) {  // defensive
-        hi = lo;
-        lo = pred(lo);
-      }
-    }
+    const double guess = c_strtod(pr.mag_token.c_str(), &end);  // magnitude, >= 0
+    round_positive(guess, [&](double v) { return compare_mag(pr.sig, pr.p2, pr.p5, v); }, lo, hi);
   }
   if (pr.sign < 0) {
     rd = -hi;

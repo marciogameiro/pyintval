@@ -132,3 +132,14 @@ def test_from_string_infinite_radius():
     assert iv.Interval("2.5??u").endpoints == (2.5, math.inf)
     assert iv.Interval("-10??d").endpoints == (-math.inf, -10.0)
     assert iv.Interval("10?" + "9" * 320).is_entire  # radius overflow saturates
+
+
+def test_from_string_rational():
+    # F4': rational endpoints p/q, correctly (outward) rounded.
+    from fractions import Fraction
+
+    assert iv.Interval("[-4/2, 10/5]").endpoints == (-2.0, 2.0)  # exact
+    assert 0.1 in iv.Interval("1/10")
+    for r in ["2/3", "-1/7", "22/7", "10000000000000001/10000000000000000"]:
+        lo, hi = iv.Interval(r).endpoints
+        assert Fraction(lo) <= Fraction(r) <= Fraction(hi)  # rigorously encloses p/q

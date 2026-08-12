@@ -179,7 +179,7 @@ TEST_CASE("malformed inputs are rejected") {
   const char* bad[] = {"",        "inf",  "nan",   "[inf,inf]", "[-inf,-inf]", "[2,1]",
                        "1.2.3",   "1e",   "1e+",   "0x",        ".",           "e5",
                        "[1,2",    "1,2]", "--1",   "1 2",       "0x1.p",       "abc",
-                       "[1,2,3]", "1/3",  "3.5?x", "[nan]",     "[1, nan]"};
+                       "[1,2,3]", "1/0",  "3.5?x", "[nan]",     "[1, nan]"};
   for (const char* s : bad) {
     CAPTURE(s);
     CHECK(rejects(s));
@@ -212,6 +212,21 @@ TEST_CASE("half-bounded and empty inf-sup literals (F4)") {
   CHECK(bit_equal(parse("[1,]"), make(1.0, detail::kInf)));
   CHECK(bit_equal(parse("[,2]"), make(-detail::kInf, 2.0)));
   CHECK(bit_equal(parse("[-1,]"), make(-1.0, detail::kInf)));
+}
+
+TEST_CASE("rational endpoints p/q (F4')") {
+  CHECK(bit_equal(parse("[-4/2, 10/5]"), make(-2.0, 2.0)));  // exact
+  // 2/3 is inexact: a tight 1-ulp bracket that encloses the exact value.
+  const Interval a = parse("2/3");
+  CHECK(detail::succ(a.lo) == a.hi);
+  CHECK(is_member(2.0 / 3.0, a));
+  // 1 + 1e-16 rounds down to 1 (lower) and up to succ(1) (upper).
+  const Interval b =
+      parse("[10000000000000001/10000000000000000, 10000000000000002/10000000000000001]");
+  CHECK(b.lo == 1.0);
+  CHECK(b.hi == detail::succ(1.0));
+  // Mixed hex + rational endpoints in one literal.
+  CHECK(is_member(-0.59375, parse("[-0x1.3p-1, 2/3]")));  // -0x1.3p-1 == -0.59375
 }
 
 // Enclosure is the rigorous I/O contract: re-parsing formatted text yields a
